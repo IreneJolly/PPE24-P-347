@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Définition des couleurs de fond et de texte */
+:root {
+  --background-color: #000; /* Couleur de fond noire */
+  --foreground-color: #fff; /* Couleur de texte blanche */
+}
+
+/* Styles pour le body */
+body {
+  @apply bg-black text-white; /* Application des couleurs de fond et de texte */
+  overflow: hidden;
+}
+
+/* Styles pour le header */
+header {
+  @apply border-b border-gray-300; /* Utilisez une classe Tailwind existante */
+}
+
+nav {
+  @apply flex items-center justify-between px-4 py-4; /* Alignement et espacement dans le nav */
+}
+
+/* Style pour la barre de recherche */
+form {
+  @apply flex items-center w-full max-w-lg mx-auto; /* Centre la barre de recherche */
+}
+
+input[type="text"] {
+  @apply flex-grow px-2 py-1 border border-gray-300 rounded-md bg-black text-white placeholder-opacity-50; /* Style de l'input */
+}
+
+button {
+  @apply ml-2 text-white; /* Style du bouton de recherche */
+}
+
+/* Style du titre du site */
+h1 {
+  @apply text-3xl font-bold; /* Taille et graisse du texte */
+}
+h2 {
+  @apply text-2xl font-bold; /* Taille et graisse du texte */
+}
+h3 {
+  @apply text-xl font-bold; /* Taille et graisse du texte */
+}
+
+
+/* Styles pour le footer */
+footer {
+  @apply w-full h-fit flex flex-col items-center justify-center py-4 bg-black; /* Alignement et espacement du footer */
+  position: absolute;
+  bottom: 0; /* Positionner le footer en bas */
+}
+
+/* Texte du footer */
+footer p {
+  @apply text-center text-lg; /* Alignement et taille du texte */
+}
+
+/* Styles pour la page des cours */
+.carousel {
+  @apply p-5 h-1/2; /* Padding et hauteur de la première moitié */
+  @apply flex flex-col items-center; /* Centrer les éléments du carrousel */
+}
+
+.carousel-items {
+  @apply flex space-x-4 overflow-x-auto my-30; /* Flex pour aligner les cours et espacement horizontal */
+}
+
+.carousel-item {
+  @apply flex flex-col items-center; /* Alignement pour chaque cours */
+  width: 200px; /* Largeur fixe pour chaque élément du carrousel */
+}
+
+.progress-bar {
+  @apply w-full bg-gray-300; /* Couleur de fond de la barre de progression */
+}
+
+.progress {
+  @apply h-2 bg-teal-500; /* Hauteur et couleur de la barre de progression */
+}
+
+.assignments {
+  @apply p-5; /* Padding pour la section des rendus */
+}
+
+.assignment-list {
+  @apply list-disc pl-5 mt-10; /* Liste avec puces et padding à gauche */
+}
+
+.assignment-item {
+  @apply text-sm; /* Taille du texte */
+}
+
+/* Styles pour le conteneur principal */
+.page-container {
+  @apply flex flex-col h-screen; /* Flex column pour occuper toute la hauteur */
+}
+
+.content {
+  @apply flex-grow; /* Pour que cette section prenne l'espace restant */
+}
+
+/* Styles pour les boutons de navigation */
+.nav-button {
+  @apply bg-gray-800 text-white p-2 rounded-md; /* Style des boutons de navigation */
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.nav-button:hover {
+  @apply bg-gray-600; /* Couleur au survol */
+}
