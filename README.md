@@ -1,34 +1,59 @@
-# PPE24-P-347: Auto-Evaluation Project
+# PPE24-P-347: Auto-Evaluation Platform
 
 ## Overview
-This project is a web-based auto-evaluation platform built with Next.js, React, and TypeScript. It provides a modern and interactive interface for self-assessment and evaluation processes.
+A modern web-based auto-evaluation platform built with Next.js 14, React, and Supabase. The platform provides a user-friendly interface for students to track their course progress and upcoming assignments.
+
+## Features
+- 🔐 Secure Authentication with Supabase
+- 📊 Interactive Course Progress Dashboard
+- 🎠 Carousel View of Current Modules
+- 📅 Upcoming Assignments Tracker
+- 👤 User Profile Information
+- 🎨 Modern UI with Tailwind CSS
 
 ## Project Structure
 ```
 projet-autoevaluation/
 ├── app/                    # Next.js application directory
-│   ├── layout.tsx         # Root layout component
-│   └── page.tsx           # Main page component
-├── styles/                # Global styles and CSS modules
-├── public/                # Static assets
-└── configuration files    # Various config files (next.config.ts, etc.)
+│   ├── dashboard/         # Protected dashboard route
+│   │   └── page.tsx      # Main dashboard component
+│   ├── login/            # Authentication routes
+│   │   └── page.tsx      # Login page
+│   ├── layout.tsx        # Root layout
+│   └── page.tsx          # Root page (handles redirects)
+├── lib/                   # Shared utilities
+│   ├── context/          # React context providers
+│   └── supabase/         # Supabase client configuration
+├── styles/               # Global styles
+└── configuration files   # Various config files
 ```
 
 ## Technology Stack
-- **Frontend Framework**: Next.js 15.1.6
-- **UI Library**: React 19
+- **Framework**: Next.js 14 with App Router
 - **Language**: TypeScript
-- **Styling**: TailwindCSS
+- **UI Library**: React 18
+- **Styling**: Tailwind CSS
+- **Authentication**: Supabase Auth
+- **Database**: Supabase
 - **Development Tools**: 
-  - PostCSS
   - ESLint
-  - TypeScript compiler
+  - TypeScript
+  - PostCSS
+  - Autoprefixer
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js (Latest LTS version recommended)
+- Node.js (v18 or newer)
 - npm or yarn package manager
+- Supabase account and project
+
+### Environment Setup
+1. Create a `.env.local` file in the root directory:
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
 ### Installation
 1. Clone the repository:
@@ -39,7 +64,6 @@ cd PPE24-P-347
 
 2. Install dependencies:
 ```bash
-cd projet-autoevaluation
 npm install
 ```
 
@@ -48,15 +72,42 @@ npm install
 npm run dev
 ```
 
-4. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
+4. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Features in Detail
+
+### Authentication
+- Secure login system using Supabase Auth
+- Protected routes with middleware
+- Automatic redirects for authenticated/unauthenticated users
+
+### Dashboard
+- Welcome section with user information
+- Interactive course modules carousel
+- Progress tracking for each module
+- Upcoming assignments list with due dates
+- Responsive design for all screen sizes
 
 ## Development
-- The application uses the Next.js App Router for routing
-- TailwindCSS is configured for styling
-- TypeScript is set up for type safety
+
+### Available Scripts
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm start` - Start production server
+- `npm run lint` - Run ESLint
+
+### Styling
+The project uses Tailwind CSS for styling with a custom configuration. Global styles are defined in `styles/globals.css`.
+
+## Contributing
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
 ## License
 This project is private and proprietary.
 
 ## Contact
-Project Link: [https://github.com/IreneJolly/PPE24-P-347.git](https://github.com/IreneJolly/PPE24-P-347.git)
+Project Link: [https://github.com/IreneJolly/PPE24-P-347](https://github.com/IreneJolly/PPE24-P-347)
