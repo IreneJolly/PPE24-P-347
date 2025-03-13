@@ -1,47 +1,177 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { UserProfile, Course, Assignment, Evaluation } from '@/lib/types'
+import AdminDashboard from './components/AdminDashboard'
+import TeacherDashboard from './components/TeacherDashboard'
+import StudentDashboard from './components/StudentDashboard'
+import DashboardLayout from './components/DashboardLayout'
 
-const courses = [
-  { id: 1, title: 'Cours 1', progress: 75 },
-  { id: 2, title: 'Cours 2', progress: 50 },
-  { id: 3, title: 'Cours 3', progress: 30 },
-  { id: 4, title: 'Cours 4', progress: 10 },
-  { id: 5, title: 'Cours 5', progress: 100 },
-  { id: 6, title: 'Cours 6', progress: 90 },
-  { id: 7, title: 'Cours 7', progress: 5 },
-];
+type DatabaseEnrollment = {
+  courses: {
+    id: number;
+    title: string;
+    progress: number;
+    description?: string | null;
+    teacher_id?: string | null;
+  };
+}
 
-const upcomingAssignments = [
-  { id: 1, title: 'Rendu 1', dueDate: '2025-02-15' },
-  { id: 2, title: 'Rendu 2', dueDate: '2025-02-12' },
-];
-
-const sortAssignments = (assignments: { id: number; title: string; dueDate: string }[]) => {
-  return assignments.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-};
+type TeacherCourseResponse = {
+  courses: {
+    id: number;
+    title: string;
+    description: string | null;
+    progress: number | null;
+  };
+}
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<any>(null)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+  const [courses, setCourses] = useState<Course[]>([])
+  const [assignments, setAssignments] = useState<Assignment[]>([])
+  const [evaluations, setEvaluations] = useState<Evaluation[]>([])
+  const [users, setUsers] = useState<UserProfile[]>([])
   const supabase = createClient()
   const router = useRouter()
-  const carouselRef = useRef<HTMLDivElement>(null);
-  const [startIndex, setStartIndex] = useState(0);
-  const itemsToShow = 4;
 
   useEffect(() => {
-    const getUser = async () => {
+    const fetchUserProfile = async () => {
+      console.log('Fetching user profile...')
       const { data: { user } } = await supabase.auth.getUser()
+      console.log('Auth user:', user)
+      
       if (!user) {
+        console.log('No user found, redirecting to login...')
         router.push('/login')
         return
       }
-      setUser(user)
+
+      // Fetch user profile with role
+      console.log('Fetching user data...')
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+      
+      console.log('User data:', { userData, error })
+
+      if (userData) {
+        // Convert roles array to single role for the frontend
+        const role = userData.roles[0] || 'student' // Default to student if no role
+        const [firstName, lastName] = (userData.full_name || '').split(' ')
+
+        setUserProfile({
+          id: user.id,
+          email: user.email!,
+          role,
+          first_name: firstName || '',
+          last_name: lastName || '',
+          created_at: userData.created_at,
+        })
+
+        // Fetch relevant data based on role
+        if (role === 'admin') {
+          // Fetch all users for admin
+          const { data: allUsers } = await supabase
+            .from('users')
+            .select('*')
+          
+          if (allUsers) {
+            setUsers(allUsers.map(u => ({
+              id: u.id,
+              email: u.email,
+              role: u.roles[0] || 'student',
+              first_name: (u.full_name || '').split(' ')[0] || '',
+              last_name: (u.full_name || '').split(' ')[1] || '',
+              created_at: u.created_at,
+            })))
+          }
+        }
+
+        if (role === 'teacher') {
+          // Fetch courses taught by this teacher
+          const { data: teacherCourses } = await supabase
+            .from('course_teachers')
+            .select('course:courses (id, title, description, progress)')
+            .eq('teacher_id', user.id)
+          
+          if (teacherCourses) {
+            const courses: Course[] = teacherCourses.map(ct => ({
+              id: (ct.course as any).id,
+              title: (ct.course as any).title,
+              description: (ct.course as any).description || undefined,
+              progress: (ct.course as any).progress || 0
+            }))
+            setCourses(courses)
+
+            if (courses.length > 0) {
+              // Fetch pending evaluations for teacher's courses
+              const { data: pendingEvals } = await supabase
+                .from('submissions')
+                .select('*')
+                .is('score', null)
+                .in('assignment_id', courses.map(c => c.id))
+              setEvaluations(pendingEvals || [])
+            }
+          }
+
+          // Fetch students for the teacher's courses
+          const { data: courseStudents } = await supabase
+            .from('users')
+            .select('*')
+            .contains('roles', ['student'])
+          
+          if (courseStudents) {
+            setUsers(courseStudents.map(u => ({
+              id: u.id,
+              email: u.email,
+              role: 'student',
+              first_name: (u.full_name || '').split(' ')[0] || '',
+              last_name: (u.full_name || '').split(' ')[1] || '',
+              created_at: u.created_at,
+            })))
+          }
+        }
+
+        if (role === 'student') {
+          // Fetch courses the student is enrolled in
+          const { data: enrollments } = await supabase
+            .from('enrollments')
+            .select('courses (id, title, progress, description)')
+            .eq('student_id', user.id)
+          
+          if (enrollments) {
+            const enrolledCourses: Course[] = (enrollments as unknown as DatabaseEnrollment[]).map(enrollment => ({
+              id: enrollment.courses.id,
+              title: enrollment.courses.title,
+              progress: enrollment.courses.progress,
+              description: enrollment.courses.description || undefined,
+            }))
+            setCourses(enrolledCourses)
+
+            // Fetch assignments for enrolled courses
+            const { data: courseAssignments } = await supabase
+              .from('assignments')
+              .select('*')
+              .in('course_id', enrolledCourses.map(c => c.id))
+            setAssignments(courseAssignments || [])
+
+            // Fetch student's submissions
+            const { data: studentSubmissions } = await supabase
+              .from('submissions')
+              .select('*')
+              .eq('student_id', user.id)
+            setEvaluations(studentSubmissions || [])
+          }
+        }
+      }
     }
 
-    getUser()
+    fetchUserProfile()
   }, [supabase, router])
 
   const handleSignOut = async () => {
@@ -49,114 +179,124 @@ export default function DashboardPage() {
     router.push('/login')
   }
 
-  const scrollLeft = () => {
-    if (startIndex > 0) {
-      setStartIndex(startIndex - itemsToShow);
-    }
-  };
+  const handleUpdateUser = async (user: UserProfile) => {
+    const { error } = await supabase
+      .from('users')
+      .update({
+        roles: [user.role],
+        full_name: `${user.first_name} ${user.last_name}`.trim(),
+      })
+      .eq('id', user.id)
 
-  const scrollRight = () => {
-    if (startIndex + itemsToShow < courses.length) {
-      setStartIndex(startIndex + itemsToShow);
+    if (!error) {
+      setUsers(users.map(u => u.id === user.id ? user : u))
     }
-  };
+  }
 
-  const sortedAssignments = sortAssignments(upcomingAssignments);
+  const handleDeleteUser = async (userId: string) => {
+    const { error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', userId)
+
+    if (!error) {
+      setUsers(users.filter(u => u.id !== userId))
+    }
+  }
+
+  const handleUpdateEvaluation = async (evaluation: Evaluation) => {
+    const { error } = await supabase
+      .from('submissions')
+      .update({
+        score: evaluation.grade,
+        feedback: evaluation.feedback,
+        graded_by: userProfile?.id,
+      })
+      .eq('id', evaluation.id)
+
+    if (!error) {
+      setEvaluations(evaluations.map(e => e.id === evaluation.id ? evaluation : e))
+    }
+  }
+
+  const handleCreateAssignment = async (assignment: Omit<Assignment, 'id'>) => {
+    const { data, error } = await supabase
+      .from('assignments')
+      .insert([assignment])
+      .select()
+
+    if (!error && data) {
+      setAssignments([...assignments, data[0]])
+    }
+  }
+
+  const handleSubmitAssignment = async (assignmentId: number, submission: { content: string }) => {
+    if (!userProfile) return
+
+    const { error } = await supabase
+      .from('submissions')
+      .insert([{
+        assignment_id: assignmentId,
+        student_id: userProfile.id,
+        attempt_number: 1,
+        content: submission.content,
+      }])
+
+    if (!error) {
+      // Refresh submissions
+      const { data: updatedSubmissions } = await supabase
+        .from('submissions')
+        .select('*')
+        .eq('student_id', userProfile.id)
+      setEvaluations(updatedSubmissions || [])
+    }
+  }
+
+  if (!userProfile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500 mx-auto"></div>
+          <p className="mt-4 text-sm text-gray-500">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const dashboardContent = (
+    <>
+      {userProfile.role === 'admin' && (
+        <AdminDashboard
+          users={users}
+          onUpdateUser={handleUpdateUser}
+          onDeleteUser={handleDeleteUser}
+        />
+      )}
+
+      {userProfile.role === 'teacher' && (
+        <TeacherDashboard
+          courses={courses}
+          pendingEvaluations={evaluations}
+          students={users}
+          onUpdateEvaluation={handleUpdateEvaluation}
+          onCreateAssignment={handleCreateAssignment}
+        />
+      )}
+
+      {userProfile.role === 'student' && (
+        <StudentDashboard
+          courses={courses}
+          assignments={assignments}
+          evaluations={evaluations}
+          onSubmitAssignment={handleSubmitAssignment}
+        />
+      )}
+    </>
+  )
 
   return (
-    <div className="grid gap-6">
-      {/* Welcome Section */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <div className="flex justify-between items-start mb-4">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            Welcome to Auto-Evaluation
-          </h1>
-          <button
-            onClick={handleSignOut}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
-          >
-            Sign Out
-          </button>
-        </div>
-        
-        {user && (
-          <div className="bg-gray-50 p-4 rounded-md">
-            <h2 className="text-lg font-medium text-gray-900 mb-2">
-              User Information
-            </h2>
-            <div className="text-sm text-gray-600">
-              <p><span className="font-medium">Email:</span> {user.email}</p>
-              <p><span className="font-medium">Last Sign In:</span> {new Date(user.last_sign_in_at).toLocaleString()}</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Modules Section */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Modules en cours</h2>
-        <div className="carousel-container relative flex items-center">
-          {/* Boutons de navigation */}
-          <button 
-            onClick={scrollLeft} 
-            disabled={startIndex === 0} 
-            className="nav-button absolute left-0 z-10 bg-white shadow-md"
-          >
-            ◀
-          </button>
-
-          <div className="carousel-items flex space-x-4 overflow-hidden px-8" ref={carouselRef}>
-            {courses.slice(startIndex, startIndex + itemsToShow).map(course => (
-              <div key={course.id} className="carousel-item flex-none w-1/4 text-center p-4">
-                <h3 className="font-medium text-gray-900 mb-2">{course.title}</h3>
-                <div className="relative pt-1">
-                  <div className="flex mb-2 items-center justify-between">
-                    <span className="text-xs font-semibold inline-block text-indigo-600">
-                      Progression : {course.progress}%
-                    </span>
-                  </div>
-                  <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-200">
-                    <div 
-                      style={{ width: `${course.progress}%` }} 
-                      className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-500"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <button 
-            onClick={scrollRight} 
-            disabled={startIndex + itemsToShow >= courses.length} 
-            className="nav-button absolute right-0 z-10 bg-white shadow-md"
-          >
-            ▶
-          </button>
-        </div>
-      </div>
-
-      {/* Prochains rendus Section */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          Prochains rendus obligatoires
-        </h2>
-        <div className="space-y-4">
-          {sortedAssignments.map((assignment, index) => (
-            <div 
-              key={assignment.id} 
-              className={`flex justify-between items-center ${
-                index !== sortedAssignments.length - 1 ? 'border-b pb-4' : ''
-              }`}
-            >
-              <div>
-                <p className="font-medium text-gray-900">{assignment.title}</p>
-                <p className="text-sm text-gray-500">Échéance : {assignment.dueDate}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+    <DashboardLayout user={userProfile} onSignOut={handleSignOut}>
+      {dashboardContent}
+    </DashboardLayout>
   )
 } 

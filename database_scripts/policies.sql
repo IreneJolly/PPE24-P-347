@@ -11,38 +11,59 @@ ALTER TABLE public.assignment_competencies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.course_attachments ENABLE ROW LEVEL SECURITY;
 
+
 ----------------------------------------------------------------
 -- 2. Policies for the "users" table
 ----------------------------------------------------------------
--- Allow a user to SELECT their own record or if they are an admin.
-CREATE POLICY "Users select own record or admin" ON public.users
+-- Allow authenticated users to SELECT their own record
+CREATE POLICY "Users can view own record" ON public.users
+FOR SELECT
+USING (auth.uid() = id);
+
+-- Allow admins to SELECT all records
+CREATE POLICY "Admins can view all records" ON public.users
 FOR SELECT
 USING (
-  id = auth.uid()
-  OR EXISTS (
+  EXISTS (
     SELECT 1 FROM public.users u 
     WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
   )
 );
 
--- Allow INSERT only if the inserted record is for the current user.
-CREATE POLICY "Users insert self" ON public.users
-FOR INSERT
-WITH CHECK (id = auth.uid());
+-- Allow teachers to SELECT student records
+CREATE POLICY "Teachers can view student records" ON public.users
+FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM public.users u 
+    WHERE u.id = auth.uid() AND 'teacher' = ANY(u.roles)
+  ) AND 'student' = ANY(users.roles)
+);
 
--- Allow UPDATE if the user is updating their own record or is admin.
+-- Allow INSERT only if the inserted record is for the current user or by an admin
+CREATE POLICY "Users insert self or admin" ON public.users
+FOR INSERT
+WITH CHECK (
+  id = auth.uid() OR
+  EXISTS (
+    SELECT 1 FROM public.users u 
+    WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
+  )
+);
+
+-- Allow UPDATE if the user is updating their own record or is admin
 CREATE POLICY "Users update self or admin" ON public.users
 FOR UPDATE
 USING (
-  id = auth.uid()
-  OR EXISTS (
+  id = auth.uid() OR
+  EXISTS (
     SELECT 1 FROM public.users u 
     WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
   )
 )
 WITH CHECK (
-  id = auth.uid()
-  OR EXISTS (
+  id = auth.uid() OR
+  EXISTS (
     SELECT 1 FROM public.users u 
     WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
   )

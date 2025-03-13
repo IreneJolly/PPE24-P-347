@@ -3,10 +3,26 @@ CREATE TABLE public.users (
     id uuid PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
     email text UNIQUE NOT NULL,
     full_name text,
-    roles text[] NOT NULL,  -- Alternatively, use jsonb if preferred
+    roles text[] NOT NULL DEFAULT ARRAY['student'],  -- Default role is student
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz DEFAULT now()
 );
+
+-- Create a function to handle new user creation
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.users (id, email, roles)
+    VALUES (new.id, new.email, ARRAY['student'])
+    ON CONFLICT (id) DO NOTHING;
+    RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create a trigger to call the function on user creation
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- 2. Courses table
 CREATE TABLE public.courses (

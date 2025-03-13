@@ -16,18 +16,23 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+    console.log('Starting login process...')
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
+      console.log('Login response:', { data, error })
+
       if (error) throw error
 
+      console.log('Login successful, redirecting...')
       router.push('/')
       router.refresh()
     } catch (error: any) {
+      console.error('Login error:', error)
       setError(error.message)
     } finally {
       setLoading(false)
