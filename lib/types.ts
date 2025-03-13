@@ -20,16 +20,25 @@ export interface Course {
 export interface Assignment {
   id: number;
   title: string;
-  dueDate: string;
   course_id: number;
   description?: string;
+  
+  // For UI display
+  dueDate?: string;
   status?: 'pending' | 'submitted' | 'graded';
+  
+  // Database fields
+  type?: string;
+  start_date?: string;
+  end_date?: string;
+  max_attempts?: number | null;
 }
 
 export interface Evaluation {
   id: number;
+  assignment_id: number;
   student_id: string;
-  course_id: number;
+  course_id?: number;
   grade?: number;
   feedback?: string;
   submitted_at?: string;

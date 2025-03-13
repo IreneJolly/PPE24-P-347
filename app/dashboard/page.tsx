@@ -301,14 +301,125 @@ export default function DashboardPage() {
     }
   }
 
-  const handleCreateAssignment = async (assignment: Omit<Assignment, 'id'>) => {
-    const { data, error } = await supabase
-      .from('assignments')
-      .insert([assignment])
-      .select()
+  const handleCreateCourse = async (course: { title: string; description: string }) => {
+    try {
+      // Insert the course
+      const { data: newCourse, error: courseError } = await supabase
+        .from('courses')
+        .insert([
+          {
+            title: course.title,
+            description: course.description,
+          },
+        ])
+        .select()
+        .single()
 
-    if (!error && data) {
-      setAssignments([...assignments, data[0]])
+      if (courseError) {
+        console.error('Error creating course:', courseError)
+        return null
+      }
+
+      // Associate the course with the teacher
+      const { error: teacherError } = await supabase
+        .from('course_teachers')
+        .insert([
+          {
+            course_id: newCourse.id,
+            teacher_id: userProfile?.id,
+          },
+        ])
+
+      if (teacherError) {
+        console.error('Error associating teacher with course:', teacherError)
+        // We could delete the course here if needed
+        return null
+      }
+
+      // Add the new course to the state
+      const createdCourse: Course = {
+        id: newCourse.id,
+        title: newCourse.title,
+        description: newCourse.description || undefined,
+        progress: 0,
+        teacher_id: userProfile?.id,
+      }
+      
+      setCourses([...courses, createdCourse])
+      return createdCourse
+    } catch (error) {
+      console.error('Error in handleCreateCourse:', error)
+      return null
+    }
+  }
+
+  const handleAddCourseMaterial = async (material: { courseId: number; title: string; fileUrl: string; description: string }) => {
+    try {
+      // In a real app, you would first upload the file to Supabase Storage
+      // For this example, we'll assume the fileUrl is already generated
+
+      const { error } = await supabase
+        .from('course_attachments')
+        .insert([
+          {
+            course_id: material.courseId,
+            title: material.title,
+            description: material.description,
+            file_url: material.fileUrl,
+            uploaded_by: userProfile?.id,
+          },
+        ])
+
+      if (error) {
+        console.error('Error adding course material:', error)
+        throw error
+      }
+
+      // Success notification could be added here
+    } catch (error) {
+      console.error('Error in handleAddCourseMaterial:', error)
+      throw error
+    }
+  }
+
+  const handleCreateAssignment = async (assignment: Omit<Assignment, 'id'>) => {
+    try {
+      // Convert the Assignment type to match the database schema
+      const dbAssignment = {
+        course_id: assignment.course_id,
+        title: assignment.title,
+        description: assignment.description || null,
+        type: assignment.type || 'assignment',
+        start_date: assignment.start_date,
+        end_date: assignment.end_date,
+        max_attempts: assignment.max_attempts || null,
+      }
+      
+      const { data, error } = await supabase
+        .from('assignments')
+        .insert([dbAssignment])
+        .select()
+
+      if (error) {
+        console.error('Error creating assignment:', error)
+        return
+      }
+
+      if (data) {
+        // Convert the database response to match the Assignment type
+        const newAssignment: Assignment = {
+          id: data[0].id,
+          title: data[0].title,
+          course_id: data[0].course_id,
+          description: data[0].description,
+          dueDate: data[0].end_date,
+          status: 'pending',
+        }
+        
+        setAssignments([...assignments, newAssignment])
+      }
+    } catch (error) {
+      console.error('Error in handleCreateAssignment:', error)
     }
   }
 
@@ -362,6 +473,8 @@ export default function DashboardPage() {
           students={users}
           onUpdateEvaluation={handleUpdateEvaluation}
           onCreateAssignment={handleCreateAssignment}
+          onCreateCourse={handleCreateCourse}
+          onAddCourseMaterial={handleAddCourseMaterial}
         />
       )}
 
