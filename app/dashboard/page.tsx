@@ -486,6 +486,7 @@ export default function DashboardPage() {
 
       {userProfile.role === 'teacher' && (
         <TeacherDashboard
+          user={userProfile}
           courses={courses}
           pendingEvaluations={evaluations}
           students={users}
