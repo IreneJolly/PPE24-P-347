@@ -16,9 +16,14 @@ export default function StudentDashboard({
 }: StudentDashboardProps) {
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
 
-  const sortedAssignments = [...assignments].sort(
-    (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
-  );
+  // Safely sort assignments by due date, handling undefined values
+  const sortedAssignments = [...assignments].sort((a, b) => {
+    // If either assignment doesn't have a dueDate, use end_date as fallback
+    const dateA = a.dueDate || a.end_date || '9999-12-31'; // Default to far future if no date
+    const dateB = b.dueDate || b.end_date || '9999-12-31';
+    
+    return new Date(dateA).getTime() - new Date(dateB).getTime();
+  });
 
   const getAssignmentStatus = (assignment: Assignment) => {
     const evaluation = evaluations.find(e => e.course_id === assignment.course_id);
@@ -26,6 +31,13 @@ export default function StudentDashboard({
     if (evaluation.grade) return 'graded';
     if (evaluation.submitted_at) return 'submitted';
     return 'pending';
+  };
+
+  // Helper function to format assignment date safely
+  const formatAssignmentDate = (assignment: Assignment) => {
+    const date = assignment.dueDate || assignment.end_date;
+    if (!date) return 'No due date';
+    return new Date(date).toLocaleDateString();
   };
 
   return (
@@ -74,7 +86,7 @@ export default function StudentDashboard({
                     <h3 className="text-sm font-medium text-gray-900">{assignment.title}</h3>
                     <p className="text-xs text-gray-500">{course?.title}</p>
                     <p className="text-xs text-gray-500 mt-1">
-                      Due: {new Date(assignment.dueDate).toLocaleDateString()}
+                      Due: {formatAssignmentDate(assignment)}
                     </p>
                   </div>
                   <span

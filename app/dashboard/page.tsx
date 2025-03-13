@@ -237,7 +237,25 @@ export default function DashboardPage() {
               .from('assignments')
               .select('*')
               .in('course_id', enrolledCourses.map(c => c.id))
-            setAssignments(courseAssignments || [])
+
+            if (courseAssignments) {
+              // Transform the assignments to match our interface
+              const formattedAssignments: Assignment[] = courseAssignments.map(assignment => ({
+                id: assignment.id,
+                title: assignment.title,
+                course_id: assignment.course_id,
+                description: assignment.description,
+                type: assignment.type,
+                dueDate: assignment.end_date, // Use end_date as dueDate for backward compatibility
+                start_date: assignment.start_date,
+                end_date: assignment.end_date,
+                max_attempts: assignment.max_attempts,
+                status: 'pending' // Will be updated based on submissions
+              }))
+              setAssignments(formattedAssignments)
+            } else {
+              setAssignments([])
+            }
 
             // Fetch student's submissions
             const { data: studentSubmissions } = await supabase
