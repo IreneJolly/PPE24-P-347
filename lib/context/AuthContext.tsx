@@ -9,12 +9,14 @@ type AuthContextType = {
   user: User | null
   loading: boolean
   error: string | null
+  signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  error: null
+  error: null,
+  signOut: async () => {}
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -24,16 +26,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const supabase = createClient()
 
+  const signOut = async () => {
+    try {
+      setLoading(true)
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      router.push('/login')
+    } catch (err) {
+      console.error('Error signing out:', err)
+      setError(err instanceof Error ? err.message : 'Error signing out')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     let mounted = true
     
     const getSession = async () => {
       try {
-        console.log('AuthContext: Getting session...')
+        console.log('AuthContext: Starting session check...')
+        console.log('AuthContext: Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError) {
-          console.error('AuthContext: Session error:', sessionError)
+          console.error('AuthContext: Session error details:', {
+            message: sessionError.message,
+            status: sessionError.status,
+            name: sessionError.name
+          })
           if (mounted) {
             setError(sessionError.message)
             setLoading(false)
@@ -41,13 +62,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return
         }
 
-        console.log('AuthContext: Session result:', { hasSession: !!session })
+        console.log('AuthContext: Session details:', {
+          hasSession: !!session,
+          user: session?.user ? {
+            id: session.user.id,
+            email: session.user.email
+          } : null
+        })
         if (mounted) {
           setUser(session?.user ?? null)
           setLoading(false)
         }
       } catch (err) {
-        console.error('AuthContext: Unexpected error:', err)
+        console.error('AuthContext: Unexpected error details:', {
+          error: err,
+          message: err instanceof Error ? err.message : 'Unknown error',
+          stack: err instanceof Error ? err.stack : undefined
+        })
         if (mounted) {
           setError(err instanceof Error ? err.message : 'An unexpected error occurred')
           setLoading(false)
@@ -103,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, error }}>
+    <AuthContext.Provider value={{ user, loading, error, signOut }}>
       {children}
     </AuthContext.Provider>
   )

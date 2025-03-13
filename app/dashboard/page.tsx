@@ -34,47 +34,126 @@ export default function DashboardPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
   const [users, setUsers] = useState<UserProfile[]>([])
+  const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
   const router = useRouter()
 
   useEffect(() => {
     const fetchUserProfile = async () => {
-      console.log('Fetching user profile...')
-      const { data: { user } } = await supabase.auth.getUser()
-      console.log('Auth user:', user)
-      
-      if (!user) {
-        console.log('No user found, redirecting to login...')
-        router.push('/login')
-        return
-      }
+      try {
+        console.log('Starting user profile fetch...')
+        
+        // First, get the authenticated user
+        const authResponse = await supabase.auth.getUser()
+        console.log('Auth response:', {
+          hasUser: !!authResponse.data.user,
+          userId: authResponse.data.user?.id,
+          error: authResponse.error
+        })
+        
+        if (authResponse.error) {
+          console.error('Auth error:', authResponse.error)
+          setError(authResponse.error.message)
+          return
+        }
 
-      // Fetch user profile with role
-      console.log('Fetching user data...')
-      const { data: userData, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-      
-      console.log('User data:', { userData, error })
+        const user = authResponse.data.user
+        if (!user) {
+          console.log('No authenticated user found')
+          router.push('/login')
+          return
+        }
 
-      if (userData) {
-        // Convert roles array to single role for the frontend
-        const role = userData.roles[0] || 'student' // Default to student if no role
-        const [firstName, lastName] = (userData.full_name || '').split(' ')
-
-        setUserProfile({
-          id: user.id,
-          email: user.email!,
-          role,
-          first_name: firstName || '',
-          last_name: lastName || '',
-          created_at: userData.created_at,
+        // Then, fetch user profile with role
+        console.log('Fetching user data from users table...')
+        console.log('User ID:', user.id)
+        
+        // First try to get the user's own record
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id, email, roles, full_name, created_at')
+          .eq('id', user.id)
+          .single()
+        
+        console.log('User data response:', {
+          hasData: !!userData,
+          error: userError ? {
+            message: userError.message,
+            code: userError.code,
+            details: userError.details,
+            hint: userError.hint
+          } : null
         })
 
+        if (userError) {
+          console.error('Error fetching user data:', {
+            message: userError.message,
+            code: userError.code,
+            details: userError.details,
+            hint: userError.hint
+          })
+          setError(userError.message)
+          return
+        }
+
+        let userProfileData: UserProfile;
+
+        if (!userData) {
+          console.error('No user data found')
+          // Try to create the user record if it doesn't exist
+          const { data: newUser, error: createError } = await supabase
+            .from('users')
+            .insert([{
+              id: user.id,
+              email: user.email,
+              roles: ['student'],
+              full_name: user.user_metadata?.full_name || ''
+            }])
+            .select()
+            .single()
+
+          if (createError) {
+            console.error('Error creating user:', createError)
+            setError('Failed to create user profile')
+            return
+          }
+
+          if (!newUser) {
+            setError('Failed to create user profile')
+            return
+          }
+
+          // Use the newly created user data
+          const userRole = newUser.roles[0] || 'student'
+          const [firstName, lastName] = (newUser.full_name || '').split(' ')
+
+          userProfileData = {
+            id: newUser.id,
+            email: newUser.email,
+            role: userRole,
+            first_name: firstName || '',
+            last_name: lastName || '',
+            created_at: newUser.created_at,
+          }
+        } else {
+          // Use the existing user data
+          const userRole = userData.roles[0] || 'student'
+          const [firstName, lastName] = (userData.full_name || '').split(' ')
+
+          userProfileData = {
+            id: userData.id,
+            email: userData.email,
+            role: userRole,
+            first_name: firstName || '',
+            last_name: lastName || '',
+            created_at: userData.created_at,
+          }
+        }
+
+        setUserProfile(userProfileData)
+
         // Fetch relevant data based on role
-        if (role === 'admin') {
+        if (userProfileData.role === 'admin') {
           // Fetch all users for admin
           const { data: allUsers } = await supabase
             .from('users')
@@ -92,7 +171,7 @@ export default function DashboardPage() {
           }
         }
 
-        if (role === 'teacher') {
+        if (userProfileData.role === 'teacher') {
           // Fetch courses taught by this teacher
           const { data: teacherCourses } = await supabase
             .from('course_teachers')
@@ -137,7 +216,7 @@ export default function DashboardPage() {
           }
         }
 
-        if (role === 'student') {
+        if (userProfileData.role === 'student') {
           // Fetch courses the student is enrolled in
           const { data: enrollments } = await supabase
             .from('enrollments')
@@ -168,6 +247,9 @@ export default function DashboardPage() {
             setEvaluations(studentSubmissions || [])
           }
         }
+      } catch (error) {
+        console.error('Error fetching user profile:', error)
+        setError(error instanceof Error ? error.message : 'An error occurred')
       }
     }
 

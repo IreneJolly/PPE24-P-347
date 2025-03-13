@@ -11,6 +11,12 @@ export const createClient = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+  console.log('Supabase Environment Variables:', {
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseKey,
+    url: supabaseUrl
+  })
+
   if (!supabaseUrl || !supabaseKey) {
     console.error('Missing Supabase environment variables:', {
       hasUrl: !!supabaseUrl,
