@@ -93,11 +93,10 @@ export default function TeacherDashboard({
         .select(`
           student_id,
           users:student_id (
-            id, 
-            first_name, 
-            last_name, 
+            id,
+            full_name,
             email,
-            role,
+            roles,
             created_at
           )
         `)
@@ -132,15 +131,68 @@ export default function TeacherDashboard({
   useEffect(() => {
     async function fetchCourses() {
       try {
-        const { data, error } = await supabase
-          .from('courses')
-          .select('*');
+        console.log('Fetching courses for teacher...');
         
-        if (error) {
-          throw error;
+        // First try to get courses that this teacher is associated with
+        const { data: teacherCourses, error: teacherCoursesError } = await supabase
+          .from('course_teachers')
+          .select(`
+            course_id,
+            courses:course_id (
+              id,
+              title,
+              description
+            )
+          `)
+          .eq('teacher_id', user?.id);
+        
+        if (teacherCoursesError) {
+          console.error('Error fetching teacher courses:', teacherCoursesError);
+          
+          // Fallback to direct courses query
+          const { data, error } = await supabase
+            .from('courses')
+            .select('*');
+          
+          if (error) {
+            console.error('Detailed error fetching courses:', {
+              message: error.message,
+              code: error.code,
+              details: error.details,
+              hint: error.hint
+            });
+            throw error;
+          }
+          
+          console.log('Courses fetched successfully:', data?.length || 0);
+          setCourses(data || []);
+        } else {
+          console.log('Teacher courses fetched successfully:', teacherCourses?.length || 0);
+          
+          if (teacherCourses && teacherCourses.length > 0) {
+            const formattedCourses = teacherCourses
+              .filter(tc => tc.courses) // Filter out any null entries
+              .map(tc => {
+                // Safely extract course data with type checking
+                const courseData = tc.courses as unknown as { 
+                  id: number; 
+                  title: string; 
+                  description: string | null;
+                };
+                
+                return {
+                  id: courseData.id,
+                  title: courseData.title,
+                  description: courseData.description || '',
+                  progress: 0  // Default value for progress
+                };
+              });
+            
+            setCourses(formattedCourses);
+          } else {
+            setCourses([]);
+          }
         }
-        
-        setCourses(data || []);
       } catch (error) {
         console.error('Error fetching courses:', error);
       }
@@ -150,7 +202,7 @@ export default function TeacherDashboard({
     if (initialCourses.length === 0) {
       fetchCourses();
     }
-  }, [initialCourses]);
+  }, [initialCourses, user]);
 
   // Fetch all students if not provided
   useEffect(() => {
@@ -159,7 +211,7 @@ export default function TeacherDashboard({
         const { data, error } = await supabase
           .from('users')
           .select('*')
-          .eq('role', 'student');
+          .contains('roles', ['student']);
 
         if (error) {
           throw error;

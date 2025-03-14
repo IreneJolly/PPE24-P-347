@@ -77,6 +77,7 @@ export default function DashboardPage() {
         
         console.log('User data response:', {
           hasData: !!userData,
+          roles: userData?.roles,
           error: userError ? {
             message: userError.message,
             code: userError.code,
@@ -173,29 +174,66 @@ export default function DashboardPage() {
 
         if (userProfileData.role === 'teacher') {
           // Fetch courses taught by this teacher
-          const { data: teacherCourses } = await supabase
-            .from('course_teachers')
-            .select('course:courses (id, title, description, progress)')
-            .eq('teacher_id', user.id)
-          
-          if (teacherCourses) {
-            const courses: Course[] = teacherCourses.map(ct => ({
-              id: (ct.course as any).id,
-              title: (ct.course as any).title,
-              description: (ct.course as any).description || undefined,
-              progress: (ct.course as any).progress || 0
-            }))
-            setCourses(courses)
-
-            if (courses.length > 0) {
-              // Fetch pending evaluations for teacher's courses
-              const { data: pendingEvals } = await supabase
-                .from('submissions')
-                .select('*')
-                .is('score', null)
-                .in('assignment_id', courses.map(c => c.id))
-              setEvaluations(pendingEvals || [])
+          try {
+            console.log('Fetching teacher courses...');
+            
+            // Using a simpler query syntax that should be more stable
+            const { data: teacherCourses, error } = await supabase
+              .from('course_teachers')
+              .select(`
+                course_id,
+                courses:course_id (
+                  id,
+                  title,
+                  description
+                )
+              `)
+              .eq('teacher_id', user.id);
+            
+            if (error) {
+              console.error('Error fetching teacher courses:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint
+              });
+              throw error;
             }
+            
+            console.log('Teacher courses result:', teacherCourses);
+            
+            if (teacherCourses && teacherCourses.length > 0) {
+              const courses: Course[] = teacherCourses.map(ct => {
+                // Safely extract course data with type checking
+                const courseData = ct.courses as unknown as { 
+                  id: number; 
+                  title: string; 
+                  description: string | null;
+                };
+                
+                return {
+                  id: courseData.id,
+                  title: courseData.title,
+                  description: courseData.description || undefined,
+                  progress: 0  // Default value for progress
+                };
+              });
+              setCourses(courses);
+              
+              // Fetch pending evaluations for teacher's courses
+              try {
+                const { data: pendingEvals } = await supabase
+                  .from('submissions')
+                  .select('*')
+                  .is('score', null)
+                  .in('assignment_id', courses.map(c => c.id))
+                setEvaluations(pendingEvals || [])
+              } catch (evalError) {
+                console.error('Error fetching pending evaluations:', evalError);
+              }
+            }
+          } catch (error) {
+            console.error('Error processing teacher courses:', error);
           }
 
           // Fetch students for the teacher's courses
@@ -321,6 +359,8 @@ export default function DashboardPage() {
 
   const handleCreateCourse = async (course: { title: string; description: string }) => {
     try {
+      console.log('Creating course with data:', course);
+      
       // Insert the course
       const { data: newCourse, error: courseError } = await supabase
         .from('courses')
@@ -334,9 +374,16 @@ export default function DashboardPage() {
         .single()
 
       if (courseError) {
-        console.error('Error creating course:', courseError)
-        return null
+        console.error('Detailed error creating course:', {
+          message: courseError.message,
+          code: courseError.code,
+          details: courseError.details,
+          hint: courseError.hint
+        });
+        return null;
       }
+
+      console.log('Course created successfully:', newCourse);
 
       // Associate the course with the teacher
       const { error: teacherError } = await supabase
@@ -349,9 +396,14 @@ export default function DashboardPage() {
         ])
 
       if (teacherError) {
-        console.error('Error associating teacher with course:', teacherError)
+        console.error('Detailed error associating teacher with course:', {
+          message: teacherError.message,
+          code: teacherError.code,
+          details: teacherError.details,
+          hint: teacherError.hint
+        });
         // We could delete the course here if needed
-        return null
+        return null;
       }
 
       // Add the new course to the state
