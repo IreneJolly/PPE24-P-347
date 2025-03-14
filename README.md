@@ -105,3 +105,68 @@ This project is private and proprietary.
 
 ## Contact
 Project Link: [https://github.com/IreneJolly/PPE24-P-347](https://github.com/IreneJolly/PPE24-P-347)
+
+## Setup Instructions
+
+### Prerequisites
+- Node.js (v18 or later)
+- npm or yarn
+- PostgreSQL database
+- Supabase account
+
+### Installation
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Set up environment variables:
+   Copy `.env.example` to `.env.local` and fill in your Supabase credentials
+
+4. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+### Database Setup
+1. Run the database schema creation script:
+   ```sql
+   psql -U your_username -d your_database -f database_scripts/tables.sql
+   ```
+
+2. Apply the policies for proper row-level security:
+   ```sql
+   psql -U your_username -d your_database -f database_scripts/policies.sql
+   ```
+   
+### Important Database Updates
+The `policies.sql` file has been updated to allow teachers to create courses. Make sure to run the updated script to enable this functionality.
+
+The database uses Row-Level Security (RLS) policies to restrict access:
+- Teachers can now create courses and associate themselves with those courses
+- Teachers can only update/delete their own courses
+- Admins have full access to all courses
+
+## Features
+
+### For Students
+- Enroll in courses
+- View assignments and submit work
+- Track progress across courses
+
+### For Teachers
+- Create and manage courses
+- Create assignments and materials
+- Evaluate student submissions
+- Track student progress
+
+### For Administrators
+- Manage all users (students, teachers)
+- Oversee all courses
+- System-wide analytics
+
+## Technologies Used
+- Next.js (React framework)
+- Supabase (backend and authentication)
+- PostgreSQL (database)
+- Tailwind CSS (styling)

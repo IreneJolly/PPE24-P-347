@@ -63,10 +63,20 @@ WITH CHECK (true);
 ----------------------------------------------------------------
 -- 3. Policies for the "courses" table
 ----------------------------------------------------------------
--- Allow everyone to view courses
+-- Drop all existing policies to avoid conflicts
+DROP POLICY IF EXISTS "Everyone can view courses" ON public.courses;
+DROP POLICY IF EXISTS "Teachers and admins can create courses" ON public.courses;
+DROP POLICY IF EXISTS "Teachers can update/delete own courses" ON public.courses;
+DROP POLICY IF EXISTS "Admins can update/delete any course" ON public.courses;
+DROP POLICY IF EXISTS "Courses select all" ON public.courses;
+DROP POLICY IF EXISTS "Courses insert admin only" ON public.courses;
+DROP POLICY IF EXISTS "Courses update admin only" ON public.courses;
+DROP POLICY IF EXISTS "Courses delete admin only" ON public.courses;
+
+-- Allow all authenticated users to view courses
 CREATE POLICY "Everyone can view courses" ON public.courses
 FOR SELECT
-USING (true);
+USING (auth.uid() IS NOT NULL);
 
 -- Allow teachers and admins to create courses
 CREATE POLICY "Teachers and admins can create courses" ON public.courses
@@ -105,111 +115,33 @@ USING (
 ----------------------------------------------------------------
 -- 4. Policies for the "course_teachers" table
 ----------------------------------------------------------------
+-- Drop all existing policies to avoid conflicts
+DROP POLICY IF EXISTS "Everyone can view course teachers" ON public.course_teachers;
+DROP POLICY IF EXISTS "Admins can manage course teachers" ON public.course_teachers;
+DROP POLICY IF EXISTS "CourseTeachers select all" ON public.course_teachers;
+DROP POLICY IF EXISTS "CourseTeachers insert admin only" ON public.course_teachers;
+DROP POLICY IF EXISTS "CourseTeachers update admin only" ON public.course_teachers;
+DROP POLICY IF EXISTS "CourseTeachers delete admin only" ON public.course_teachers;
+
 -- Everyone can view course teacher relationships
 CREATE POLICY "Everyone can view course teachers" ON public.course_teachers
 FOR SELECT
-USING (true);
-
--- Only admins can add/remove teachers from courses
--- Allow UPDATE if the user is updating their own record or is admin
-CREATE POLICY "Users update self or admin" ON public.users
-FOR UPDATE
-USING (
-  id = auth.uid() OR
-  EXISTS (
-    SELECT 1 FROM public.users u 
-    WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
-  )
-)
-WITH CHECK (
-  id = auth.uid() OR
-  EXISTS (
-    SELECT 1 FROM public.users u 
-    WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
-  )
-);
-
-----------------------------------------------------------------
--- 3. Policies for the "courses" table
-----------------------------------------------------------------
--- Allow all authenticated users to SELECT courses.
-CREATE POLICY "Courses select all" ON public.courses
-FOR SELECT
 USING (auth.uid() IS NOT NULL);
 
--- Only an admin can INSERT courses.
-CREATE POLICY "Courses insert admin only" ON public.courses
+-- Teachers can create teacher-course relationships for themselves
+CREATE POLICY "Teachers can add themselves to courses" ON public.course_teachers
 FOR INSERT
 WITH CHECK (
+  teacher_id = auth.uid() AND
   EXISTS (
     SELECT 1 FROM public.users u 
-    WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
+    WHERE u.id = auth.uid() AND 'teacher' = ANY(u.roles)
   )
 );
 
--- Only an admin can UPDATE courses.
-CREATE POLICY "Courses update admin only" ON public.courses
-FOR UPDATE
-USING (
-  EXISTS (
-    SELECT 1 FROM public.users u 
-    WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
-  )
-)
-WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM public.users u 
-    WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
-  )
-);
-
--- Only an admin can DELETE courses.
-CREATE POLICY "Courses delete admin only" ON public.courses
-FOR DELETE
-USING (
-  EXISTS (
-    SELECT 1 FROM public.users u 
-    WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
-  )
-);
-
-----------------------------------------------------------------
--- 4. Policies for the "course_teachers" table
-----------------------------------------------------------------
--- Allow all authenticated users to SELECT course-teacher assignments.
-CREATE POLICY "CourseTeachers select all" ON public.course_teachers
-FOR SELECT
-USING (auth.uid() IS NOT NULL);
-
--- Only an admin can INSERT a teacher into a course.
-CREATE POLICY "CourseTeachers insert admin only" ON public.course_teachers
-FOR INSERT
-WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM public.users u 
-    WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
-  )
-);
-
--- Only an admin can UPDATE course-teacher assignments.
-CREATE POLICY "CourseTeachers update admin only" ON public.course_teachers
-FOR UPDATE
-USING (
-  EXISTS (
-    SELECT 1 FROM public.users u 
-    WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
-  )
-)
-WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM public.users u 
-    WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
-  )
-);
-
--- Only an admin can DELETE course-teacher assignments.
-CREATE POLICY "CourseTeachers delete admin only" ON public.course_teachers
-FOR DELETE
+-- Only admins can add other teachers to courses
+CREATE POLICY "Admins can manage course teachers" ON public.course_teachers
+FOR ALL
 USING (
   EXISTS (
     SELECT 1 FROM public.users u 
