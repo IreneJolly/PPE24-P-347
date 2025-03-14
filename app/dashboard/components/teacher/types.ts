@@ -8,7 +8,7 @@ export interface TeacherDashboardProps {
   onUpdateEvaluation?: (evaluation: Evaluation) => void;
   onCreateAssignment?: (assignment: Omit<Assignment, 'id'>) => void;
   onCreateCourse?: (course: { title: string; description: string }) => Promise<Course | null>;
-  onAddCourseMaterial?: (material: { courseId: number; title: string; fileUrl: string; description: string }) => Promise<void>;
+  onAddCourseMaterial?: (material: { courseId: number; title: string; fileUrl: string; description: string; file?: File }) => Promise<void>;
 }
 
 export interface ModalProps {
@@ -22,7 +22,7 @@ export interface CreateCourseModalProps extends ModalProps {
 
 export interface AddMaterialModalProps extends ModalProps {
   selectedCourse: Course | null;
-  onAddCourseMaterial: (material: { courseId: number; title: string; fileUrl: string; description: string }) => Promise<void>;
+  onAddCourseMaterial: (material: { courseId: number; title: string; fileUrl: string; description: string; file: File }) => Promise<void>;
 }
 
 export interface CreateAssignmentModalProps extends ModalProps {
@@ -59,4 +59,6 @@ export interface CourseDetailProps {
   onAddAssignment: () => void;
   onAddMaterial: () => void;
   onEnrollStudents: () => void;
+  onUpdateMaterial: (material: any) => void;
+  onDeleteMaterial: (materialId: number) => void;
 } 

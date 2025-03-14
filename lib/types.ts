@@ -12,7 +12,6 @@ export interface UserProfile {
 export interface Course {
   id: number;
   title: string;
-  progress: number;
   teacher_id?: string;
   description?: string;
 }

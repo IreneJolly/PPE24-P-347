@@ -7,7 +7,9 @@ export default function CourseDetail({
   enrolledStudents,
   onAddAssignment,
   onAddMaterial,
-  onEnrollStudents
+  onEnrollStudents,
+  onUpdateMaterial,
+  onDeleteMaterial
 }: CourseDetailProps) {
   if (!selectedCourse) return null;
 
@@ -49,28 +51,6 @@ export default function CourseDetail({
       
       {/* Tabs for course content */}
       <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Course statistics */}
-        <div className="p-3 bg-white rounded shadow">
-          <h4 className="text-sm font-medium text-gray-500 uppercase">Course Progress</h4>
-          <div className="mt-2">
-            <div className="relative pt-1">
-              <div className="flex items-center justify-between">
-                <div className="text-right">
-                  <span className="text-xs font-semibold inline-block text-indigo-600">
-                    {selectedCourse.progress}%
-                  </span>
-                </div>
-              </div>
-              <div className="overflow-hidden h-2 mb-1 text-xs flex rounded bg-indigo-200">
-                <div
-                  style={{ width: `${selectedCourse.progress}%` }}
-                  className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-500"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-        
         {/* Course Materials */}
         <div className="p-3 bg-white rounded shadow">
           <div className="flex justify-between items-center">
@@ -90,9 +70,31 @@ export default function CourseDetail({
                     <div className="font-medium">{material.title}</div>
                     <div className="text-xs text-gray-500">{material.description}</div>
                   </div>
-                  <span className="text-xs text-gray-400">
-                    {new Date(material.created_at).toLocaleDateString()}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-gray-400">
+                      {new Date(material.created_at).toLocaleDateString()}
+                    </span>
+                    <div className="flex space-x-1">
+                      <button 
+                        onClick={() => onUpdateMaterial(material)} 
+                        className="p-1 text-blue-600 hover:text-blue-800"
+                        title="Edit material"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                      </button>
+                      <button 
+                        onClick={() => onDeleteMaterial(material.id)} 
+                        className="p-1 text-red-600 hover:text-red-800"
+                        title="Delete material"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ))
             ) : (
