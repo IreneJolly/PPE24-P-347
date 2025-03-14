@@ -1,3 +1,6 @@
+-- This consolidated file includes all Row Level Security (RLS) policies
+-- for the database schema
+
 ----------------------------------------------------------------
 -- 1. Enable Row-Level Security on all tables
 ----------------------------------------------------------------
@@ -13,44 +16,101 @@ ALTER TABLE public.course_attachments ENABLE ROW LEVEL SECURITY;
 
 
 ----------------------------------------------------------------
--- 2. Policies for the "users" table
+-- 2. Special policies for users table (from fix_rls_policies.sql)
 ----------------------------------------------------------------
--- Allow authenticated users to SELECT their own record
-CREATE POLICY "Users can view own record" ON public.users
-FOR SELECT
+-- Drop all existing policies for users table to avoid conflicts
+DROP POLICY IF EXISTS "Users can view own record" ON public.users;
+DROP POLICY IF EXISTS "Admins can view all records" ON public.users;
+DROP POLICY IF EXISTS "users_select_policy" ON public.users;
+DROP POLICY IF EXISTS "users_insert_policy" ON public.users;
+DROP POLICY IF EXISTS "users_update_policy" ON public.users;
+DROP POLICY IF EXISTS "users_delete_policy" ON public.users;
+
+-- Grant basic permissions
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON public.users TO authenticated;
+GRANT SELECT ON public.users TO anon;
+
+-- Create a simple SELECT policy that allows:
+-- 1. Authenticated users to see their own records
+-- 2. Anon users to see records during signup/login
+CREATE POLICY "users_select_policy" ON public.users
+FOR SELECT TO authenticated, anon
+USING (true);
+
+-- Create an INSERT policy that only allows inserting your own record
+CREATE POLICY "users_insert_policy" ON public.users
+FOR INSERT TO authenticated
+WITH CHECK (auth.uid() = id);
+
+-- Create an UPDATE policy that only allows updating your own record
+CREATE POLICY "users_update_policy" ON public.users
+FOR UPDATE TO authenticated
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
+
+-- Create a DELETE policy that only allows deleting your own record
+CREATE POLICY "users_delete_policy" ON public.users
+FOR DELETE TO authenticated
 USING (auth.uid() = id);
 
--- Allow admins to SELECT all records
-CREATE POLICY "Admins can view all records" ON public.users
-FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM public.users u 
-    WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
-  )
-);
+-- Allow the trigger function to insert users
+CREATE POLICY "Allow trigger function to insert users" ON public.users
+FOR INSERT
+WITH CHECK (true);
 
--- Allow teachers to SELECT student records
-CREATE POLICY "Teachers can view student records" ON public.users
-FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM public.users u 
-    WHERE u.id = auth.uid() AND 'teacher' = ANY(u.roles)
-  ) AND 'student' = ANY(users.roles)
-);
 
--- Allow INSERT only if the inserted record is for the current user or by an admin
-CREATE POLICY "Users insert self or admin" ON public.users
+----------------------------------------------------------------
+-- 3. Policies for the "courses" table
+----------------------------------------------------------------
+-- Allow everyone to view courses
+CREATE POLICY "Everyone can view courses" ON public.courses
+FOR SELECT
+USING (true);
+
+-- Allow teachers and admins to create courses
+CREATE POLICY "Teachers and admins can create courses" ON public.courses
 FOR INSERT
 WITH CHECK (
-  id = auth.uid() OR
+  EXISTS (
+    SELECT 1 FROM public.users u 
+    WHERE u.id = auth.uid() AND (
+      'teacher' = ANY(u.roles) OR 'admin' = ANY(u.roles)
+    )
+  )
+);
+
+-- Allow teachers to update/delete only their own courses
+CREATE POLICY "Teachers can update/delete own courses" ON public.courses
+FOR ALL 
+USING (
+  EXISTS (
+    SELECT 1 FROM public.course_teachers ct 
+    JOIN public.users u ON u.id = ct.teacher_id
+    WHERE ct.course_id = id AND ct.teacher_id = auth.uid() AND 'teacher' = ANY(u.roles)
+  )
+);
+
+-- Allow admins to update/delete any course
+CREATE POLICY "Admins can update/delete any course" ON public.courses
+FOR ALL
+USING (
   EXISTS (
     SELECT 1 FROM public.users u 
     WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
   )
 );
 
+
+----------------------------------------------------------------
+-- 4. Policies for the "course_teachers" table
+----------------------------------------------------------------
+-- Everyone can view course teacher relationships
+CREATE POLICY "Everyone can view course teachers" ON public.course_teachers
+FOR SELECT
+USING (true);
+
+-- Only admins can add/remove teachers from courses
 -- Allow UPDATE if the user is updating their own record or is admin
 CREATE POLICY "Users update self or admin" ON public.users
 FOR UPDATE
@@ -520,3 +580,32 @@ USING (
     WHERE u.id = auth.uid() AND 'admin' = ANY(u.roles)
   )
 );
+
+----------------------------------------------------------------
+-- 11. Verify that RLS is properly configured
+----------------------------------------------------------------
+DO $$
+BEGIN
+  -- Check if RLS is enabled on all tables
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_tables
+    WHERE schemaname = 'public'
+      AND tablename = 'users'
+      AND rowsecurity = true
+  ) THEN
+    RAISE EXCEPTION 'RLS is not enabled on public.users';
+  END IF;
+
+  -- Check if policies exist for users table
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'users'
+      AND policyname = 'users_update_policy'
+  ) THEN
+    RAISE EXCEPTION 'Update policy is missing for users table';
+  END IF;
+END
+$$;

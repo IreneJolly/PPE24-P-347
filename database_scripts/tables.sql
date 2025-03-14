@@ -1,14 +1,18 @@
+-- This consolidated file includes all table definitions, triggers, and functions
+-- for the database schema
+
 -- 1. Users table (extended profile)
 CREATE TABLE public.users (
     id uuid PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
     email text UNIQUE NOT NULL,
     full_name text,
     roles text[] NOT NULL DEFAULT ARRAY['student'],  -- Default role is student
+    is_first_login BOOLEAN DEFAULT true,  -- From add_first_login.sql
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz DEFAULT now()
 );
 
--- Create a function to handle new user creation
+-- Updated function to handle new user creation with SECURITY DEFINER (from fix_trigger.sql)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -18,6 +22,14 @@ BEGIN
     RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant necessary permissions (from fix_trigger.sql)
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT ALL ON public.users TO authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+
+-- Set search path for the trigger function (from fix_trigger.sql)
+ALTER FUNCTION public.handle_new_user() SET search_path = public;
 
 -- Create a trigger to call the function on user creation
 CREATE TRIGGER on_auth_user_created
@@ -113,3 +125,8 @@ CREATE TABLE public.course_attachments (
     created_at timestamptz DEFAULT now(),
     updated_at timestamptz DEFAULT now()
 );
+
+-- Update existing users to have is_first_login = true if they don't have a full_name (from add_first_login.sql)
+UPDATE public.users 
+SET is_first_login = true 
+WHERE full_name IS NULL OR full_name = '';
