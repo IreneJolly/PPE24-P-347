@@ -210,15 +210,18 @@ export default function TeacherDashboard({
   useEffect(() => {
     async function fetchStudents() {
       try {
+        // Attempt to fetch students using both role fields to be compatible
+        // with the database schema changes
         const { data, error } = await supabase
           .from('users')
           .select('*')
-          .contains('roles', ['student']);
+          .or('role.eq.student,roles.cs.{student}');
 
         if (error) {
           throw error;
         }
 
+        console.log(`Fetched ${data?.length || 0} students`);
         setStudents(data || []);
       } catch (error) {
         console.error('Error fetching students:', error);

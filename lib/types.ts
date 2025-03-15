@@ -4,6 +4,7 @@ export interface UserProfile {
   id: string;
   email: string;
   role: UserRole;
+  roles?: UserRole[];
   first_name: string;
   last_name: string;
   created_at: string;
