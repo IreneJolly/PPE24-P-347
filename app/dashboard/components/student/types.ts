@@ -1,14 +1,10 @@
-import { Course, Assignment, Evaluation } from '@/lib/types';
+import { Course, Assignment, Evaluation,  UserProfile } from '@/lib/types';
 
 export interface StudentDashboardProps {
   courses: Course[];
   assignments: Assignment[];
   evaluations: Evaluation[];
   onSubmitAssignment: (assignmentId: number, submission: { content: string }) => void;
-}
-
-export interface ProgressSectionProps {
-  courses: Course[];
 }
 
 export interface AssignmentsSectionProps {
@@ -25,3 +21,15 @@ export interface SubmitAssignmentModalProps {
   onClose: () => void;
   onSubmitAssignment: (assignmentId: number, submission: { content: string }) => void;
 } 
+
+export interface ProgressSectionProps {
+  courses: Course[];
+  selectedCourse: Course | null;
+  setSelectedCourse: (course: Course) => void;
+}
+
+export interface CourseDetailProps {
+  selectedCourse: Course | null;
+  courseMaterials: any[];
+  courseAssignments: any[];
+}

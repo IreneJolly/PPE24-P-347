@@ -15,6 +15,7 @@ export interface Course {
   title: string;
   teacher_id?: string;
   description?: string;
+  progress?: number;
 }
 
 export interface Assignment {

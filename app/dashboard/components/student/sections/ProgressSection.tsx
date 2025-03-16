@@ -1,13 +1,23 @@
 import React from 'react';
 import { ProgressSectionProps } from '../types';
 
-export default function ProgressSection({ courses }: ProgressSectionProps) {
+export default function ProgressSection({ 
+  courses, 
+  selectedCourse, 
+  setSelectedCourse
+}: ProgressSectionProps) {
   return (
     <div className="bg-white shadow rounded-lg p-6">
       <h2 className="text-lg font-medium text-gray-900 mb-4">My Progress</h2>
       <div className="space-y-6">
         {courses.map((course) => (
-          <div key={course.id} className="border rounded-lg p-4">
+          <div
+          key={course.id}
+          className={`border rounded-lg p-4 hover:bg-gray-50 cursor-pointer ${
+            selectedCourse?.id === course.id ? 'border-indigo-500 bg-indigo-50' : ''
+          }`}
+          onClick={() => setSelectedCourse(course)}
+        >
             <div className="flex justify-between items-center mb-2">
               <h3 className="text-base font-medium text-gray-900">{course.title}</h3>
               <span className="text-sm text-gray-500">{course.progress}%</span>
@@ -30,4 +40,4 @@ export default function ProgressSection({ courses }: ProgressSectionProps) {
       </div>
     </div>
   );
-} 
+}
