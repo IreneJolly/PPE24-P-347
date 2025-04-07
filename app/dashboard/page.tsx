@@ -3,11 +3,23 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { UserProfile, Course, Assignment, Evaluation } from '@/lib/types'
-import AdminDashboard from './components/AdminDashboard'
+import { UserProfile, Course, Assignment, Evaluation, UserRole } from '@/lib/types'
+import AdminDashboard from './components/admin/index'
 import TeacherDashboard from './components/TeacherDashboard'
 import StudentDashboard from './components/StudentDashboard'
 import DashboardLayout from './components/DashboardLayout'
+
+type DatabaseUser = {
+  id: string;
+  email: string;
+  roles: UserRole[];
+  full_name: string | null;
+  created_at: string;
+  is_first_login: boolean;
+  status: 'active' | 'suspended';
+  suspended_reason?: string;
+  suspended_at?: string;
+}
 
 type DatabaseEnrollment = {
   courses: {

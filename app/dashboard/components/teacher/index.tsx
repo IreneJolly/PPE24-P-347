@@ -95,26 +95,33 @@ export default function TeacherDashboard({
         .from('enrollments')
         .select(`
           student_id,
-          users:student_id (
+          users!enrollments_student_id_fkey (
             id,
-            first_name,
-            last_name,
             email,
-            roles,
-            created_at
+            full_name,
+            roles
           )
         `)
         .eq('course_id', selectedCourse.id);
 
       if (error) {
+        console.error('Supabase error fetching enrolled students:', error);
         throw error;
       }
 
-      // Flatten the nested structure
-      const students = data?.map((enrollment: any) => enrollment.users) || [];
+      // Transform the data to match the expected format
+      const students = data?.map((enrollment: any) => ({
+        id: enrollment.users.id,
+        email: enrollment.users.email,
+        first_name: enrollment.users.full_name?.split(' ')[0] || '',
+        last_name: enrollment.users.full_name?.split(' ').slice(1).join(' ') || '',
+        roles: enrollment.users.roles
+      })) || [];
+
       setEnrolledStudents(students);
     } catch (error) {
       console.error('Error fetching enrolled students:', error);
+      setEnrolledStudents([]); // Reset on error
     }
   }
 
@@ -243,23 +250,45 @@ export default function TeacherDashboard({
   // Enroll students in a course
   async function onEnrollStudents(courseId: number, studentIds: string[]) {
     try {
-      // Create an array of enrollment objects
-      const enrollments = studentIds.map(studentId => ({
+      // First check if any of these students are already enrolled
+      const { data: existingEnrollments, error: checkError } = await supabase
+        .from('enrollments')
+        .select('student_id')
+        .eq('course_id', courseId)
+        .in('student_id', studentIds);
+
+      if (checkError) {
+        console.error('Error checking existing enrollments:', checkError);
+        throw checkError;
+      }
+
+      // Filter out already enrolled students
+      const existingStudentIds = existingEnrollments?.map(e => e.student_id) || [];
+      const newStudentIds = studentIds.filter(id => !existingStudentIds.includes(id));
+
+      if (newStudentIds.length === 0) {
+        console.log('All selected students are already enrolled');
+        return;
+      }
+
+      // Create enrollment objects for new students only
+      const enrollments = newStudentIds.map(studentId => ({
         course_id: courseId,
         student_id: studentId,
+        enrollment_date: new Date().toISOString()
       }));
 
-      // Insert the enrollments in a single batch
-      const { error } = await supabase
+      const { error: insertError } = await supabase
         .from('enrollments')
         .insert(enrollments);
 
-      if (error) {
-        throw error;
+      if (insertError) {
+        console.error('Supabase error enrolling students:', insertError);
+        throw insertError;
       }
 
-      // Refresh enrolled students after enrollment
-      fetchEnrolledStudents();
+      // Refresh enrolled students after successful enrollment
+      await fetchEnrolledStudents();
     } catch (error) {
       console.error('Error enrolling students:', error);
       throw error;

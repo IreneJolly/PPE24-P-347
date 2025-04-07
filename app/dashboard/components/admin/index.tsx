@@ -8,6 +8,8 @@ import SystemStatistics from './sections/SystemStatistics';
 
 // Import modals
 import EditUserModal from './modals/EditUserModal';
+import AddUserModal from './modals/AddUserModal';
+import DeleteUserModal from './modals/DeleteUserModal';
 
 export default function AdminDashboard({ 
   users, 
@@ -15,6 +17,8 @@ export default function AdminDashboard({
   onDeleteUser 
 }: AdminDashboardProps) {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
 
   // Calculate user statistics by role
   const usersByRole = users.reduce((acc, user) => {
@@ -27,9 +31,27 @@ export default function AdminDashboard({
     setSelectedUser(user);
   };
 
+  // Handle selecting a user for deletion
+  const handleDeleteClick = (user: UserProfile) => {
+    setUserToDelete(user);
+  };
+
   // Handle closing the edit user modal
   const handleCloseModal = () => {
     setSelectedUser(null);
+  };
+
+  // Handle refreshing the user list after adding a new user
+  const handleUserAdded = () => {
+    window.location.reload();
+  };
+
+  // Handle user deletion
+  const handleUserDeleted = () => {
+    if (userToDelete) {
+      onDeleteUser(userToDelete.id);
+      setUserToDelete(null);
+    }
   };
 
   return (
@@ -38,7 +60,8 @@ export default function AdminDashboard({
       <UserManagement 
         users={users} 
         onSelectUser={handleSelectUser} 
-        onDeleteUser={onDeleteUser} 
+        onDeleteUser={handleDeleteClick}
+        onAddUser={() => setIsAddUserModalOpen(true)}
       />
 
       {/* System Statistics Section */}
@@ -52,6 +75,21 @@ export default function AdminDashboard({
         selectedUser={selectedUser} 
         onClose={handleCloseModal} 
         onUpdateUser={onUpdateUser} 
+      />
+
+      {/* Add User Modal */}
+      <AddUserModal
+        isOpen={isAddUserModalOpen}
+        onClose={() => setIsAddUserModalOpen(false)}
+        onUserAdded={handleUserAdded}
+      />
+
+      {/* Delete User Modal */}
+      <DeleteUserModal
+        isOpen={!!userToDelete}
+        onClose={() => setUserToDelete(null)}
+        user={userToDelete}
+        onUserDeleted={handleUserDeleted}
       />
     </div>
   );

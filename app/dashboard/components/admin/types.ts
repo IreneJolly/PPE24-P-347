@@ -9,7 +9,8 @@ export interface AdminDashboardProps {
 export interface UserManagementProps {
   users: UserProfile[];
   onSelectUser: (user: UserProfile) => void;
-  onDeleteUser: (userId: string) => void;
+  onDeleteUser: (user: UserProfile) => void;
+  onAddUser: () => void;
 }
 
 export interface SystemStatisticsProps {
