@@ -2,26 +2,34 @@
   "name": "projet-autoevaluation",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "schema:export": "NODE_OPTIONS='--loader ts-node/esm' node --experimental-specifier-resolution=node scripts/export-schema.ts",
+    "db:pull": "supabase db pull",
+    "db:new-migration": "supabase migration new"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.49.1",
+    "dotenv": "^16.4.7",
     "next": "14.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@types/dotenv": "^6.1.1",
     "@types/node": "^20.11.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "autoprefixer": "^10.4.17",
     "postcss": "^8.4.35",
+    "supabase": "^1.142.1",
     "tailwindcss": "^3.4.1",
+    "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }
 }
