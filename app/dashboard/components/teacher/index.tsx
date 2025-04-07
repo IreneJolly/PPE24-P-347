@@ -97,7 +97,8 @@ export default function TeacherDashboard({
           student_id,
           users:student_id (
             id,
-            full_name,
+            first_name,
+            last_name,
             email,
             roles,
             created_at
@@ -210,29 +211,34 @@ export default function TeacherDashboard({
   useEffect(() => {
     async function fetchStudents() {
       try {
-        // Attempt to fetch students using both role fields to be compatible
-        // with the database schema changes
+        // Fetch users where the 'roles' array contains 'student'
         const { data, error } = await supabase
           .from('users')
           .select('*')
-          .or('role.eq.student,roles.cs.{student}');
+          // Use contains filter for the roles array
+          .contains('roles', ['student']); 
 
         if (error) {
+          console.error('Supabase error fetching students:', error);
           throw error;
         }
 
         console.log(`Fetched ${data?.length || 0} students`);
         setStudents(data || []);
       } catch (error) {
-        console.error('Error fetching students:', error);
+        // Log the error but don't necessarily crash the component
+        console.error('Error in fetchStudents logic:', error);
+        setStudents([]); // Reset students on error
       }
     }
 
     // Only fetch students if no initial students were provided
+    // Or maybe fetch always if the list might change?
+    // For now, sticking to initial check.
     if (initialStudents.length === 0) {
       fetchStudents();
     }
-  }, [initialStudents]);
+  }, [initialStudents, supabase]); // Added supabase dependency
 
   // Enroll students in a course
   async function onEnrollStudents(courseId: number, studentIds: string[]) {
