@@ -1,14 +1,22 @@
 import { useState } from 'react';
 import { AddMaterialModalProps } from '../types';
+import { createClient } from '@supabase/supabase-js';
 
-export default function AddMaterialModal({ 
-  isOpen, 
-  onClose, 
-  selectedCourse, 
-  onAddCourseMaterial 
+export default function AddMaterialModal({
+  isOpen,
+  onClose,
+  selectedCourse,
+  onAddCourseMaterial
 }: AddMaterialModalProps) {
   const [isUploadingMaterial, setIsUploadingMaterial] = useState(false);
   const [materialFile, setMaterialFile] = useState<File | null>(null);
+
+  // Récupérer les variables d'environnement
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string ?? '';  // URL de Supabase
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string ?? '';  // Clé anonyme de Supabase
+
+  // Créer le client Supabase
+  const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
   if (!isOpen || !selectedCourse) return null;
 
@@ -20,23 +28,19 @@ export default function AddMaterialModal({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!materialFile || !selectedCourse) return;
-    
+    if (!materialFile || !selectedCourse || !supabase) {
+      console.error('Required parameters are missing');
+      return; // Quittez la fonction si une valeur requise est manquante  
+    }
+
     setIsUploadingMaterial(true);
     try {
       const formData = new FormData(e.currentTarget);
       const title = formData.get('title') as string;
       const description = formData.get('description') as string;
-      
-      // Use the selected course ID directly
-      const courseId = selectedCourse.id;
-      
-      // Generate a unique file name
-      const fileExt = materialFile.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-      const filePath = `${courseId}/${fileName}`;
-      
-      // Pass the file object in the parameters
+      const courseId = selectedCourse.id; 
+      const filePath = `course_materials/${courseId}/${materialFile.name}`;
+
       await onAddCourseMaterial({
         courseId,
         title,
@@ -44,7 +48,9 @@ export default function AddMaterialModal({
         description,
         file: materialFile
       });
-      
+
+      console.log("Test : ", filePath);
+
       onClose();
     } catch (error) {
       console.error('Error uploading material:', error);

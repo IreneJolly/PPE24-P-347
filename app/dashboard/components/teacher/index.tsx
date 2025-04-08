@@ -316,13 +316,14 @@ export default function TeacherDashboard({
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
       
       // Use teacher UUID as bucket name and course ID as folder
-      const bucketName = user.id;
-      const filePath = `${courseId}/${fileName}`;
+      const bucketName = selectedCourse.title;
+      const filePath = `course_materials/${courseId}/${title}`;
       
       console.log(`Uploading new file to ${bucketName}/${filePath}`);
       
       // Upload the file to Supabase storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { data: uploadData, error: uploadError } = await supabase
+        .storage
         .from(bucketName)
         .upload(filePath, file);
       

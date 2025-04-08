@@ -7,13 +7,68 @@ export default function CourseDetail({
 }: CourseDetailProps) {
   if (!selectedCourse) return null;
 
+  const checkFileExists = async (fileUrl: string) => {
+    try {
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new Error(`File not found: ${fileUrl}`);
+      }
+      return true;
+    } catch (error) {
+      console.error(error);
+      return false;
+    }
+  };
+
+  const handleDownload = async (fileUrl: string) => {
+    if (!fileUrl) {
+      console.error('File URL is not provided');
+      return;
+    }
+
+    // Décoder l'URL si nécessaire  
+    const adjustedFileUrl = decodeURIComponent(fileUrl);
+
+    console.log("Attempting to download file from URL:", adjustedFileUrl);
+
+    const fileExists = await checkFileExists(adjustedFileUrl);
+    if (!fileExists) {
+      console.error('The file does not exist or is not accessible.');
+      return;
+    }
+
+    // Créer une requête pour récupérer le fichier  
+    fetch(adjustedFileUrl)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.blob(); // Convertir la réponse en Blob  
+      })
+      .then(blob => {
+        const link = document.createElement('a');
+        const url = window.URL.createObjectURL(blob); // Créer un objet URL à partir du Blob  
+        link.href = url;
+        const fileName = adjustedFileUrl.split('/').pop(); // Récupérer le nom du fichier  
+        link.setAttribute('download', fileName || "" ); // Attribuer le nom de fichier  
+        document.body.appendChild(link);
+        link.click(); // Simuler un clic pour lancer le téléchargement  
+        link.remove(); // Retirer le lien après le téléchargement  
+        window.URL.revokeObjectURL(url); // Libérer l'objet URL  
+      })
+      .catch(error => {
+        console.error('Failed to download file:', error);
+      });
+  };
+
+
   return (
     <div className="bg-white shadow rounded-lg p-6 mt-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-medium text-gray-900">{selectedCourse.title}</h2>
       </div>
       <p className="text-sm text-gray-500 mb-6">{selectedCourse.description}</p>
-      
+
       {/* Tabs for course content */}
       <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Course Materials */}
@@ -24,7 +79,11 @@ export default function CourseDetail({
           <div className="mt-2 space-y-2 max-h-48 overflow-y-auto">
             {courseMaterials.length > 0 ? (
               courseMaterials.map((material) => (
-                <div key={material.id} className="flex items-center justify-between p-2 border rounded text-sm">
+                <div
+                  key={material.id}
+                  className="flex items-center justify-between p-2 border rounded text-sm cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleDownload(material.file_url)} // Utilisation de material.file_url pour le téléchargement  
+                >
                   <div>
                     <div className="font-medium">{material.title}</div>
                     <div className="text-xs text-gray-500">{material.description}</div>
@@ -41,7 +100,7 @@ export default function CourseDetail({
             )}
           </div>
         </div>
-        
+
         {/* Course Assignments */}
         <div className="p-3 bg-white rounded shadow">
           <div className="flex justify-between items-center">
@@ -73,4 +132,4 @@ export default function CourseDetail({
       </div>
     </div>
   );
-} 
+}
