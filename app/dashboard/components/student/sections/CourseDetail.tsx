@@ -1,9 +1,13 @@
+import { useEffect, useState } from 'react';
 import { CourseDetailProps } from '../types';
+import { createClient } from '@/lib/supabase/client';
 
 export default function CourseDetail({
+  user,
   selectedCourse,
   courseMaterials,
-  courseAssignments
+  courseAssignments,
+  courseCompetence
 }: CourseDetailProps) {
   if (!selectedCourse) return null;
 
@@ -50,7 +54,7 @@ export default function CourseDetail({
         const url = window.URL.createObjectURL(blob); // Créer un objet URL à partir du Blob  
         link.href = url;
         const fileName = adjustedFileUrl.split('/').pop(); // Récupérer le nom du fichier  
-        link.setAttribute('download', fileName || "" ); // Attribuer le nom de fichier  
+        link.setAttribute('download', fileName || ""); // Attribuer le nom de fichier  
         document.body.appendChild(link);
         link.click(); // Simuler un clic pour lancer le téléchargement  
         link.remove(); // Retirer le lien après le téléchargement  
@@ -61,6 +65,60 @@ export default function CourseDetail({
       });
   };
 
+  const [selectedCompetences, setSelectedCompetences] = useState<number[]>([]);
+  const supabase = createClient();
+
+  useEffect(() => {
+    // Exemple : Récupérez les compétences cochées depuis la base de données  
+    const fetchCheckedCompetences = async () => {
+      const { data, error } = await supabase  
+        .from('competence_val')
+        .select('competence_id')
+        .eq('student_id', user.id); // Remplacez 'user.id' par l'ID de l'utilisateur actuel
+
+      if (data) {
+        // Mettez à jour l'état avec les IDs des compétences cochées  
+        const checkedIds = data.map(entry => entry.competence_id);
+        setSelectedCompetences(checkedIds);
+      }
+
+      if (error) {
+        console.error('Error fetching checked competences:', error);
+      }
+    };
+
+    fetchCheckedCompetences();
+  }, []); // Dépendance vide pour exécuter une fois au montage du composant
+
+
+  const handleCheckboxChange = async (competenceId: number, isChecked: boolean) => {
+    if (isChecked) {
+      const { data, error } = await supabase  
+        .from('competence_val')
+        .insert({
+          competence_id: competenceId,
+          student_id: user.id  
+        });
+
+      if (error) {
+        console.error('Error adding competence:', error);
+      } else {
+        setSelectedCompetences(prev => [...prev, competenceId]); // Mettre à jour l'état  
+      }
+    } else {
+      const { data, error } = await supabase  
+        .from('competence_val')
+        .delete()
+        .eq('competence_id', competenceId)
+        .eq('student_id', user.id);
+
+      if (error) {
+        console.error('Error removing competence:', error);
+      } else {
+        setSelectedCompetences(prev => prev.filter(id => id !== competenceId)); // Mettre à jour l'état  
+      }
+    }
+  };
 
   return (
     <div className="bg-white shadow rounded-lg p-6 mt-6">
@@ -72,7 +130,7 @@ export default function CourseDetail({
       {/* Tabs for course content */}
       <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Course Materials */}
-        <div className="p-3 bg-white rounded shadow">
+        <div className="p-3 bg-white rounded shadow min-h-[200px]"> {/* Ajout de min-h */}
           <div className="flex justify-between items-center">
             <h4 className="text-sm font-medium text-gray-500 uppercase">Course Materials</h4>
           </div>
@@ -102,7 +160,7 @@ export default function CourseDetail({
         </div>
 
         {/* Course Assignments */}
-        <div className="p-3 bg-white rounded shadow">
+        <div className="p-3 bg-white rounded shadow min-h-[200px]"> {/* Ajout de min-h */}
           <div className="flex justify-between items-center">
             <h4 className="text-sm font-medium text-gray-500 uppercase">Assignments</h4>
           </div>
@@ -126,6 +184,43 @@ export default function CourseDetail({
               ))
             ) : (
               <p className="text-sm text-gray-500 italic">No assignments added yet</p>
+            )}
+          </div>
+        </div>
+
+        {/* Course Competence */}
+        <div className="p-3 bg-white rounded shadow col-span-2"> {/* Ajout de col-span-2 */}
+          <div className="flex justify-between items-center">
+            <h4 className="text-sm font-medium text-gray-500 uppercase">Course Competence</h4>
+          </div>
+          <div className="mt-2 space-y-2 max-h-48 overflow-y-auto">
+            {courseCompetence.length > 0 ? (
+              courseCompetence.map((competence) => (
+                <div
+                  key={competence.id}
+                  className="flex items-center justify-between p-2 border rounded text-sm cursor-pointer hover:bg-gray-100"
+                >
+                  <div className="flex items-center space-x-2">
+                  <input 
+                    type="checkbox" 
+                    className="form-checkbox h-4 w-4 text-blue-600" 
+                    checked={selectedCompetences.includes(competence.id)} // Vérifiez si l'ID est dans l'état  
+                    onChange={(e) => handleCheckboxChange(competence.id, e.target.checked)} 
+                  />
+                    <div>
+                      <div className="font-medium">{competence.competence}</div>
+                      <div className="text-xs text-gray-500">{competence.description}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-gray-400">
+                      {new Date(competence.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500 italic">No competencies added yet</p>
             )}
           </div>
         </div>

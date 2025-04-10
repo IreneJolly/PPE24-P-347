@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { UserProfile, Course, Assignment, Evaluation, UserRole } from '@/lib/types'
+import { UserProfile, Course, Assignment, Evaluation, Competence, UserRole } from '@/lib/types'
 import AdminDashboard from './components/admin/index'
 import TeacherDashboard from './components/TeacherDashboard'
 import StudentDashboard from './components/StudentDashboard'
@@ -45,6 +45,7 @@ export default function DashboardPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [evaluations, setEvaluations] = useState<Evaluation[]>([])
+  const [competence, setCompetence] = useState<Competence[]>([])
   const [users, setUsers] = useState<UserProfile[]>([])
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
@@ -313,7 +314,15 @@ export default function DashboardPage() {
               .select('*')
               .eq('student_id', user.id)
             setEvaluations(studentSubmissions || [])
+            
+            const { data: courseCompetence } = await supabase
+              .from('competence')
+              .select('*')
+              .in('course_id', enrolledCourses.map(c => c.id))
+            setCompetence(courseCompetence || [])
           }
+
+          
         }
       } catch (error) {
         console.error('Error fetching user profile:', error)
@@ -464,6 +473,33 @@ export default function DashboardPage() {
     }
   }
 
+  const handleAddCompetence = async (material: { courseId: number; title: string; description: string }) => {
+    try {
+      // In a real app, you would first upload the file to Supabase Storage
+      // For this example, we'll assume the fileUrl is already generated
+
+      const { error } = await supabase
+        .from('competence')
+        .insert([
+          {
+            course_id: material.courseId,
+            competence: material.title,
+            description: material.description
+          },
+        ])
+
+      if (error) {
+        console.error('Error adding course material:', error)
+        throw error
+      }
+
+      // Success notification could be added here
+    } catch (error) {
+      console.error('Error in handleAddCourseMaterial:', error)
+      throw error
+    }
+  }
+
   const handleCreateAssignment = async (assignment: Omit<Assignment, 'id'>) => {
     try {
       // Convert the Assignment type to match the database schema
@@ -558,14 +594,17 @@ export default function DashboardPage() {
           onCreateAssignment={handleCreateAssignment}
           onCreateCourse={handleCreateCourse}
           onAddCourseMaterial={handleAddCourseMaterial}
+          onAddCompetence={handleAddCompetence}
         />
       )}
 
       {userProfile.role === 'student' && (
         <StudentDashboard
+        user={userProfile}
           courses={courses}
           assignments={assignments}
           evaluations={evaluations}
+          competence={competence}
           onSubmitAssignment={handleSubmitAssignment}
         />
       )}

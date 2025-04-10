@@ -9,6 +9,7 @@ export interface TeacherDashboardProps {
   onCreateAssignment?: (assignment: Omit<Assignment, 'id'>) => void;
   onCreateCourse?: (course: { title: string; description: string }) => Promise<Course | null>;
   onAddCourseMaterial?: (material: { courseId: number; title: string; fileUrl: string; description: string; file?: File }) => Promise<void>;
+  onAddCompetence?: (material: { courseId: number; title: string; description: string; }) => Promise<void>;
 }
 
 export interface ModalProps {
@@ -23,6 +24,11 @@ export interface CreateCourseModalProps extends ModalProps {
 export interface AddMaterialModalProps extends ModalProps {
   selectedCourse: Course | null;
   onAddCourseMaterial: (material: { courseId: number; title: string; fileUrl: string; description: string; file: File }) => Promise<void>;
+}
+
+export interface AddCompetenceModalProps extends ModalProps {
+  selectedCourse: Course | null;
+  onAddCompetence: (material: { courseId: number; title: string; description: string; }) => Promise<void>;
 }
 
 export interface CreateAssignmentModalProps extends ModalProps {
@@ -54,6 +60,7 @@ export interface PendingEvaluationsProps {
 export interface CourseDetailProps {
   selectedCourse: Course | null;
   courseMaterials: any[];
+  courseCompetence: any[];
   courseAssignments: any[];
   enrolledStudents: UserProfile[];
   onAddAssignment: () => void;
@@ -61,4 +68,7 @@ export interface CourseDetailProps {
   onEnrollStudents: () => void;
   onUpdateMaterial: (material: any) => void;
   onDeleteMaterial: (materialId: number) => void;
+  onAddCompetence: () => void;
+  onUpdateCompetence: (competence: any) => void;
+  onDeleteCompetence: (competenceId: number) => void;
 } 

@@ -10,19 +10,21 @@ import CourseDetail from './sections/CourseDetail';
 // Import modals
 import CreateCourseModal from './modals/CreateCourseModal';
 import AddMaterialModal from './modals/AddMaterialModal';
+import AddCompetenceModal from './modals/AddCompetenceModal';
 import CreateAssignmentModal from './modals/CreateAssignmentModal';
 import EnrollStudentsModal from './modals/EnrollStudentsModal';
 import UpdateMaterialModal from './modals/UpdateMaterialModal';
 
-export default function TeacherDashboard({ 
+export default function TeacherDashboard({
   user,
   courses: initialCourses = [],
   pendingEvaluations = [],
   students: initialStudents = [],
-  onUpdateEvaluation = () => {},
-  onCreateAssignment = () => {},
+  onUpdateEvaluation = () => { },
+  onCreateAssignment = () => { },
   onCreateCourse = async () => null,
-  onAddCourseMaterial = async () => {}
+  onAddCourseMaterial = async () => { },
+  onAddCompetence = async () => { }
 }: TeacherDashboardProps) {
   // State for data
   const [courses, setCourses] = useState(initialCourses);
@@ -32,53 +34,68 @@ export default function TeacherDashboard({
   const [students, setStudents] = useState(initialStudents);
   const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
   const [courseMaterials, setCourseMaterials] = useState<any[]>([]);
+  const [courseCompetence, setCourseCompetence] = useState<any[]>([]);
   const [courseAssignments, setCourseAssignments] = useState<any[]>([]);
-  
+
   // State for modals
   const [isCreateCourseModalOpen, setIsCreateCourseModalOpen] = useState(false);
   const [isAddMaterialModalOpen, setIsAddMaterialModalOpen] = useState(false);
+  const [isAddCompetenceModalOpen, setIsAddCompetenceModalOpen] = useState(false);
   const [isCreateAssignmentModalOpen, setIsCreateAssignmentModalOpen] = useState(false);
   const [isEnrollStudentsModalOpen, setIsEnrollStudentsModalOpen] = useState(false);
   const [isUpdateMaterialModalOpen, setIsUpdateMaterialModalOpen] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
+  const [isUpdateCompetenceModalOpen, setIsUpdateCompetenceModalOpen] = useState(false);
+  const [selectedCompetence, setSelectedCompetence] = useState<any>(null);
 
   const supabase = createClient();
 
   // Fetch course materials when selected course changes
   async function fetchMaterials() {
     if (!selectedCourse) return;
-    
+
     try {
-      const { data, error } = await supabase
+      const { data: materialsData, error: materialsError } = await supabase
         .from('course_attachments')
         .select('*')
         .eq('course_id', selectedCourse.id);
-      
-      if (error) {
-        throw error;
+
+      if (materialsError) {
+        throw materialsError;
       }
-      
-      setMaterials(data || []);
-      setCourseMaterials(data || []);
+
+      setMaterials(materialsData || []);
+      setCourseMaterials(materialsData || []);
+
+      const { data: competenceData, error: competenceError } = await supabase
+        .from('competence')
+        .select('*')
+        .eq('course_id', selectedCourse.id);
+
+      if (competenceError) {
+        throw competenceError;
+      }
+
+      setCourseCompetence(competenceData || []);
     } catch (error) {
       console.error('Error fetching course materials:', error);
     }
   }
-  
+
   // Fetch course assignments when selected course changes
   async function fetchAssignments() {
     if (!selectedCourse) return;
-    
+
     try {
       const { data, error } = await supabase
         .from('assignments')
         .select('*')
         .eq('course_id', selectedCourse.id);
-      
+
       if (error) {
         throw error;
       }
-      
+
       setAssignments(data || []);
       setCourseAssignments(data || []);
     } catch (error) {
@@ -143,7 +160,7 @@ export default function TeacherDashboard({
     async function fetchCourses() {
       try {
         console.log('Fetching courses for teacher...');
-        
+
         // First try to get courses that this teacher is associated with
         const { data: teacherCourses, error: teacherCoursesError } = await supabase
           .from('course_teachers')
@@ -156,15 +173,15 @@ export default function TeacherDashboard({
             )
           `)
           .eq('teacher_id', user?.id);
-        
+
         if (teacherCoursesError) {
           console.error('Error fetching teacher courses:', teacherCoursesError);
-          
+
           // Fallback to direct courses query
           const { data, error } = await supabase
             .from('courses')
             .select('*');
-          
+
           if (error) {
             console.error('Detailed error fetching courses:', {
               message: error.message,
@@ -174,30 +191,30 @@ export default function TeacherDashboard({
             });
             throw error;
           }
-          
+
           console.log('Courses fetched successfully:', data?.length || 0);
           setCourses(data || []);
         } else {
           console.log('Teacher courses fetched successfully:', teacherCourses?.length || 0);
-          
+
           if (teacherCourses && teacherCourses.length > 0) {
             const formattedCourses = teacherCourses
               .filter(tc => tc.courses) // Filter out any null entries
               .map(tc => {
                 // Safely extract course data with type checking
-                const courseData = tc.courses as unknown as { 
-                  id: number; 
-                  title: string; 
+                const courseData = tc.courses as unknown as {
+                  id: number;
+                  title: string;
                   description: string | null;
                 };
-                
+
                 return {
                   id: courseData.id,
                   title: courseData.title,
                   description: courseData.description || ''
                 };
               });
-            
+
             setCourses(formattedCourses);
           } else {
             setCourses([]);
@@ -207,7 +224,7 @@ export default function TeacherDashboard({
         console.error('Error fetching courses:', error);
       }
     }
-    
+
     // Only fetch courses if no initial courses were provided
     if (initialCourses.length === 0) {
       fetchCourses();
@@ -223,7 +240,7 @@ export default function TeacherDashboard({
           .from('users')
           .select('*')
           // Use contains filter for the roles array
-          .contains('roles', ['student']); 
+          .contains('roles', ['student']);
 
         if (error) {
           console.error('Supabase error fetching students:', error);
@@ -310,32 +327,32 @@ export default function TeacherDashboard({
     try {
       // Upload file to Supabase Storage
       const { courseId, title, description, file } = material;
-      
+
       // Create a unique file path
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-      
+
       // Use teacher UUID as bucket name and course ID as folder
       const bucketName = selectedCourse.title;
       const filePath = `course_materials/${courseId}/${title}`;
-      
+
       console.log(`Uploading new file to ${bucketName}/${filePath}`);
-      
+
       // Upload the file to Supabase storage
       const { data: uploadData, error: uploadError } = await supabase
         .storage
         .from(bucketName)
         .upload(filePath, file);
-      
+
       if (uploadError) {
         throw uploadError;
       }
-      
+
       // Get the public URL for the uploaded file
       const { data: { publicUrl } } = supabase.storage
         .from(bucketName)
         .getPublicUrl(filePath);
-      
+
       // Save the material info to the database
       await onAddCourseMaterial({
         courseId,
@@ -343,7 +360,32 @@ export default function TeacherDashboard({
         fileUrl: publicUrl,
         description
       });
-      
+
+      // Refresh the materials list
+      fetchMaterials();
+    } catch (error) {
+      console.error('Error adding material:', error);
+      alert('Failed to upload file. Please try again or contact support.');
+    }
+  };
+
+  // Handle adding material to a course
+  const handleAddCompetence = async (competence: { courseId: number; title: string; description: string; }) => {
+    try {
+      // Upload file to Supabase Storage
+      const { courseId, title, description } = competence;
+
+      const { error: insertError } = await supabase
+        .from('competence')
+        .insert(competence);
+
+      // Save the material info to the database
+      await onAddCompetence({
+        courseId,
+        title,
+        description
+      });
+
       // Refresh the materials list
       fetchMaterials();
     } catch (error) {
@@ -357,7 +399,13 @@ export default function TeacherDashboard({
     setSelectedMaterial(material);
     setIsUpdateMaterialModalOpen(true);
   };
-  
+
+  // Handle updating a material
+  const handleUpdateCompetence = async (material: any) => {
+    setSelectedCompetence(material);
+    setIsUpdateCompetenceModalOpen(true);
+  };
+
   // Handle updating an existing material
   const updateMaterial = async (updatedMaterial: any) => {
     try {
@@ -368,7 +416,7 @@ export default function TeacherDashboard({
           // Extract the path from the URL
           let oldFilePath = '';
           let courseId = updatedMaterial.course_id;
-          
+
           // Parse the URL to get the file path
           if (updatedMaterial.file_url.includes('/object/')) {
             // Example: https://xxx.supabase.co/storage/v1/object/public/teacher-uuid/course-id/filename.ext
@@ -380,42 +428,42 @@ export default function TeacherDashboard({
               oldFilePath = pathParts.slice(bucketIndex + 1).join('/');
             }
           }
-          
+
           if (oldFilePath) {
             console.log('Deleting old file:', oldFilePath);
             const { error: deleteError } = await supabase.storage
               .from(user.id)
               .remove([oldFilePath]);
-              
+
             if (deleteError) {
               console.error('Error deleting old file:', deleteError);
               // Continue anyway to upload the new file
             }
           }
         }
-        
+
         // Upload new file
         const fileExt = updatedMaterial.file.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
         const filePath = `${updatedMaterial.course_id}/${fileName}`;
-        
+
         console.log(`Uploading new file to ${user.id}/${filePath}`);
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from(user.id)
           .upload(filePath, updatedMaterial.file);
-        
+
         if (uploadError) {
           throw uploadError;
         }
-        
+
         // Get the public URL for the uploaded file
         const { data: { publicUrl } } = supabase.storage
           .from(user.id)
           .getPublicUrl(filePath);
-        
+
         updatedMaterial.fileUrl = publicUrl;
       }
-      
+
       // Update the material in the database
       const { error } = await supabase
         .from('course_attachments')
@@ -425,11 +473,11 @@ export default function TeacherDashboard({
           file_url: updatedMaterial.fileUrl || updatedMaterial.file_url,
         })
         .eq('id', updatedMaterial.id);
-      
+
       if (error) {
         throw error;
       }
-      
+
       // Refresh materials
       fetchMaterials();
     } catch (error) {
@@ -437,7 +485,7 @@ export default function TeacherDashboard({
       alert('Failed to update material. Please try again or contact support.');
     }
   };
-  
+
   // Handle deleting a material
   const handleDeleteMaterial = async (materialId: number) => {
     try {
@@ -447,16 +495,16 @@ export default function TeacherDashboard({
         .select('*')
         .eq('id', materialId)
         .single();
-      
+
       if (fetchError) {
         throw fetchError;
       }
-      
+
       // Delete the file from storage if it exists
       if (material && material.file_url) {
         // Extract the path from the URL
         let filePath = '';
-        
+
         // Parse the URL to get the file path
         if (material.file_url.includes('/object/')) {
           // Example: https://xxx.supabase.co/storage/v1/object/public/teacher-uuid/course-id/filename.ext
@@ -468,30 +516,51 @@ export default function TeacherDashboard({
             filePath = pathParts.slice(bucketIndex + 1).join('/');
           }
         }
-        
+
         if (filePath) {
           console.log(`Deleting file: ${user.id}/${filePath}`);
           const { error: deleteError } = await supabase.storage
             .from(user.id)
             .remove([filePath]);
-            
+
           if (deleteError) {
             console.error('Error deleting file:', deleteError);
             // Continue anyway to delete the database entry
           }
         }
       }
-      
+
       // Delete the material from the database
       const { error } = await supabase
         .from('course_attachments')
         .delete()
         .eq('id', materialId);
-      
+
       if (error) {
         throw error;
       }
-      
+
+      // Refresh materials
+      fetchMaterials();
+    } catch (error) {
+      console.error('Error deleting material:', error);
+      alert('Failed to delete material. Please try again or contact support.');
+    }
+  };
+
+  // Handle deleting a competence
+  const handleDeleteCompetence = async (competenceId: number) => {
+    try {
+      // Delete the material from the database
+      const { error } = await supabase
+        .from('competence')
+        .delete()
+        .eq('id', competenceId);
+
+      if (error) {
+        throw error;
+      }
+
       // Refresh materials
       fetchMaterials();
     } catch (error) {
@@ -509,7 +578,7 @@ export default function TeacherDashboard({
   return (
     <div className="grid grid-cols-1 gap-6">
       {/* Course List Section */}
-      <CourseList 
+      <CourseList
         courses={courses}
         selectedCourse={selectedCourse}
         setSelectedCourse={setSelectedCourse}
@@ -517,7 +586,7 @@ export default function TeacherDashboard({
       />
 
       {/* Pending Evaluations Section */}
-      <PendingEvaluations 
+      <PendingEvaluations
         pendingEvaluations={pendingEvaluations}
         students={students}
         courses={courses}
@@ -526,9 +595,10 @@ export default function TeacherDashboard({
 
       {/* Course Detail Section (visible when a course is selected) */}
       {selectedCourse && (
-        <CourseDetail 
+        <CourseDetail
           selectedCourse={selectedCourse}
           courseMaterials={courseMaterials}
+          courseCompetence={courseCompetence}
           courseAssignments={courseAssignments}
           enrolledStudents={enrolledStudents}
           onAddAssignment={() => setIsCreateAssignmentModalOpen(true)}
@@ -536,31 +606,41 @@ export default function TeacherDashboard({
           onEnrollStudents={() => setIsEnrollStudentsModalOpen(true)}
           onUpdateMaterial={handleUpdateMaterial}
           onDeleteMaterial={handleDeleteMaterial}
+          onAddCompetence={() => setIsAddCompetenceModalOpen(true)}
+          onUpdateCompetence={handleUpdateCompetence}
+          onDeleteCompetence={handleDeleteCompetence}
         />
       )}
 
       {/* Modals */}
-      <CreateCourseModal 
+      <CreateCourseModal
         isOpen={isCreateCourseModalOpen}
         onClose={() => setIsCreateCourseModalOpen(false)}
         onCreateCourse={handleCreateCourse}
       />
 
-      <AddMaterialModal 
+      <AddMaterialModal
         isOpen={isAddMaterialModalOpen}
         onClose={() => setIsAddMaterialModalOpen(false)}
         selectedCourse={selectedCourse}
         onAddCourseMaterial={handleAddMaterial}
       />
 
-      <CreateAssignmentModal 
+      <AddCompetenceModal
+        isOpen={isAddCompetenceModalOpen}
+        onClose={() => setIsAddCompetenceModalOpen(false)}
+        selectedCourse={selectedCourse}
+        onAddCompetence={handleAddCompetence}
+      />
+
+      <CreateAssignmentModal
         isOpen={isCreateAssignmentModalOpen}
         onClose={() => setIsCreateAssignmentModalOpen(false)}
         selectedCourse={selectedCourse}
         onCreateAssignment={handleCreateAssignment}
       />
 
-      <EnrollStudentsModal 
+      <EnrollStudentsModal
         isOpen={isEnrollStudentsModalOpen}
         onClose={() => setIsEnrollStudentsModalOpen(false)}
         selectedCourse={selectedCourse}

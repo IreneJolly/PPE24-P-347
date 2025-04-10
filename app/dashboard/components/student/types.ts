@@ -1,9 +1,11 @@
-import { Course, Assignment, Evaluation,  UserProfile } from '@/lib/types';
+import { Course, Assignment, Evaluation, Competence,  UserProfile } from '@/lib/types';
 
 export interface StudentDashboardProps {
+  user: UserProfile;
   courses: Course[];
   assignments: Assignment[];
   evaluations: Evaluation[];
+  competence: Competence[];
   onSubmitAssignment: (assignmentId: number, submission: { content: string }) => void;
 }
 
@@ -23,13 +25,16 @@ export interface SubmitAssignmentModalProps {
 } 
 
 export interface ProgressSectionProps {
+  user: UserProfile;
   courses: Course[];
   selectedCourse: Course | null;
   setSelectedCourse: (course: Course) => void;
 }
 
 export interface CourseDetailProps {
+  user: UserProfile;
   selectedCourse: Course | null;
   courseMaterials: any[];
   courseAssignments: any[];
+  courseCompetence: any[];
 }

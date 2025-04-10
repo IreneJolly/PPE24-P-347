@@ -14,16 +14,19 @@ import SubmitAssignmentModal from './modals/SubmitAssignmentModal';
 
 
 export default function StudentDashboard({
+  user,
   courses,
   evaluations,
   onSubmitAssignment,
 }: StudentDashboardProps) {
   const [materials, setMaterials] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [competence, setCompetence] = useState<any[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<null | any>(null);
   const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
   const [courseMaterials, setCourseMaterials] = useState<any[]>([]);
   const [courseAssignments, setCourseAssignments] = useState<any[]>([]);
+  const [courseCompetence, setCourseCompetence] = useState<any[]>([]);
 
   const supabase = createClient();
 
@@ -44,6 +47,26 @@ export default function StudentDashboard({
       setCourseMaterials(data || []);
     } catch (error) {
       console.error('Error fetching course materials:', error);
+    }
+  }
+
+  async function fetchCompetence() {
+    if (!selectedCourse) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('competence')
+        .select('*')
+        .eq('course_id', selectedCourse.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setCompetence(data || []);
+      setCourseCompetence(data || []);
+    } catch (error) {
+      console.error('Error fetching competence materials:', error);
     }
   }
 
@@ -72,9 +95,11 @@ export default function StudentDashboard({
     if (selectedCourse) {
       fetchMaterials();
       fetchAssignments();
+      fetchCompetence();
     } else {
       setCourseMaterials([]);
       setCourseAssignments([]);
+      setCourseCompetence([]);
     }
   }, [selectedCourse]);
 
@@ -117,6 +142,7 @@ export default function StudentDashboard({
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {/* Progress Section */}
       <ProgressSection
+        user={user}
         courses={courses}
         selectedCourse={selectedCourse}
         setSelectedCourse={setSelectedCourse} />
@@ -139,9 +165,11 @@ export default function StudentDashboard({
       />
       {selectedCourse && (
         <CourseDetail
+          user={user}
           selectedCourse={selectedCourse}
           courseMaterials={courseMaterials}
           courseAssignments={courseAssignments}
+          courseCompetence={courseCompetence}
         />
       )}
     </div>

@@ -18,6 +18,13 @@ export interface Course {
   progress?: number;
 }
 
+export interface Competence {
+  id: number;
+  course_id?: string;
+  title: string;
+  description?: string;
+}
+
 export interface Assignment {
   id: number;
   title: string;
