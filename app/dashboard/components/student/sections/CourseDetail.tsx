@@ -11,60 +11,6 @@ export default function CourseDetail({
 }: CourseDetailProps) {
   if (!selectedCourse) return null;
 
-  const checkFileExists = async (fileUrl: string) => {
-    try {
-      const response = await fetch(fileUrl);
-      if (!response.ok) {
-        throw new Error(`File not found: ${fileUrl}`);
-      }
-      return true;
-    } catch (error) {
-      console.error(error);
-      return false;
-    }
-  };
-
-  const handleDownload = async (fileUrl: string) => {
-    if (!fileUrl) {
-      console.error('File URL is not provided');
-      return;
-    }
-
-    // Décoder l'URL si nécessaire  
-    const adjustedFileUrl = decodeURIComponent(fileUrl);
-
-    console.log("Attempting to download file from URL:", adjustedFileUrl);
-
-    const fileExists = await checkFileExists(adjustedFileUrl);
-    if (!fileExists) {
-      console.error('The file does not exist or is not accessible.');
-      return;
-    }
-
-    // Créer une requête pour récupérer le fichier  
-    fetch(adjustedFileUrl)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        return response.blob(); // Convertir la réponse en Blob  
-      })
-      .then(blob => {
-        const link = document.createElement('a');
-        const url = window.URL.createObjectURL(blob); // Créer un objet URL à partir du Blob  
-        link.href = url;
-        const fileName = adjustedFileUrl.split('/').pop(); // Récupérer le nom du fichier  
-        link.setAttribute('download', fileName || ""); // Attribuer le nom de fichier  
-        document.body.appendChild(link);
-        link.click(); // Simuler un clic pour lancer le téléchargement  
-        link.remove(); // Retirer le lien après le téléchargement  
-        window.URL.revokeObjectURL(url); // Libérer l'objet URL  
-      })
-      .catch(error => {
-        console.error('Failed to download file:', error);
-      });
-  };
-
   const [selectedCompetences, setSelectedCompetences] = useState<number[]>([]);
   const supabase = createClient();
 
@@ -139,12 +85,18 @@ export default function CourseDetail({
               courseMaterials.map((material) => (
                 <div
                   key={material.id}
-                  className="flex items-center justify-between p-2 border rounded text-sm cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleDownload(material.file_url)} // Utilisation de material.file_url pour le téléchargement  
+                  className="flex items-center justify-between p-2 border rounded text-sm"
                 >
                   <div>
-                    <div className="font-medium">{material.title}</div>
-                    <div className="text-xs text-gray-500">{material.description}</div>
+                    <a 
+                      href={material.file_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="font-medium text-indigo-600 hover:text-indigo-800 hover:underline"
+                    >
+                      {material.title}
+                    </a>
+                    <div className="text-xs text-gray-500 mt-1">{material.description}</div>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-xs text-gray-400">
