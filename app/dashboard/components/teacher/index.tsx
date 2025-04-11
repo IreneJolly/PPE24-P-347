@@ -365,7 +365,7 @@ export default function TeacherDashboard({
       console.log('Competence updated callback triggered');
     setIsUpdateCompetenceModalOpen(false);
     setSelectedCompetence(null);
-    fetchCourseDetails();
+    fetchCourseDetails(); 
   };
 
   // Deletion Handlers
@@ -496,6 +496,7 @@ export default function TeacherDashboard({
         isOpen={isAddMaterialModalOpen}
         onClose={() => setIsAddMaterialModalOpen(false)}
         courseId={selectedCourse?.id}
+        userId={user?.id}
         onMaterialAdded={() => {
             console.log('AddMaterialModal closed, refreshing details...');
             fetchCourseDetails(); 

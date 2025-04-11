@@ -9,8 +9,9 @@ export default function AddMaterialModal({
   isOpen,
   onClose,
   courseId,
-  onMaterialAdded
-}: AddMaterialModalProps) {
+  onMaterialAdded,
+  userId
+}: AddMaterialModalProps & { userId?: string }) {
   const [isUploading, setIsUploading] = useState(false);
   const [materialFile, setMaterialFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
@@ -28,9 +29,9 @@ export default function AddMaterialModal({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!materialFile || !courseId) {
-      console.error('File or Course ID is missing');
-      alert('Please select a file to upload.')
+    if (!materialFile || !courseId || !userId) {
+      console.error('File, Course ID, or User ID is missing');
+      alert('Please select a file and ensure user is logged in.')
       return;
     }
 
@@ -44,7 +45,7 @@ export default function AddMaterialModal({
 
       const { data: uploadData, error: uploadError } = await supabase
         .storage
-        .from('course_attachments')
+        .from('programmation')
         .upload(filePath, materialFile);
 
       if (uploadError) {
@@ -56,9 +57,9 @@ export default function AddMaterialModal({
       console.log('File uploaded successfully:', uploadData);
 
       const { data: urlData } = supabase.storage
-        .from('course_attachments')
-        .getPublicUrl(filePath); 
-        
+        .from('programmation')
+        .getPublicUrl(filePath);
+
       const fileUrl = urlData?.publicUrl;
       if (!fileUrl) {
         console.error('Could not get public URL for uploaded file');
@@ -75,7 +76,7 @@ export default function AddMaterialModal({
           title: title,
           description: description,
           file_url: fileUrl,
-          file_path: filePath,
+          uploaded_by: userId,
         }]);
 
       if (dbError) {
