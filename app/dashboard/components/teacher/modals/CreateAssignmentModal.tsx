@@ -1,135 +1,154 @@
 import { useState } from 'react';
 import { CreateAssignmentModalProps } from '../types';
+import { Assignment } from '@/lib/types';
 
 export default function CreateAssignmentModal({ 
   isOpen, 
   onClose, 
-  selectedCourse, 
+  courseId,
   onCreateAssignment 
 }: CreateAssignmentModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [type, setType] = useState('assignment'); // Default type
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [maxAttempts, setMaxAttempts] = useState<number | null>(null);
 
-  if (!isOpen || !selectedCourse) return null;
+  if (!isOpen || typeof courseId !== 'number') return null;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     
     try {
-      const formData = new FormData(e.currentTarget);
-      
-      // Use the selected course ID directly
-      const courseId = selectedCourse.id;
-      
-      // Get start and end dates
-      const startDate = formData.get('startDate') as string;
-      const endDate = formData.get('endDate') as string;
-      
-      const newAssignment = {
-        title: formData.get('title') as string,
-        description: formData.get('description') as string,
-        type: formData.get('type') as string,
+      const assignmentDataToSend: Omit<Assignment, 'id'> & { courseId: number } = {
+        title: title,
+        description: description,
+        type: type,
         course_id: courseId,
-        start_date: new Date(startDate).toISOString(),
-        end_date: new Date(endDate).toISOString(),
-        dueDate: new Date(endDate).toISOString(), // For backward compatibility
-        max_attempts: parseInt(formData.get('maxAttempts') as string) || null
+        start_date: startDate ? new Date(startDate).toISOString() : undefined,
+        end_date: endDate ? new Date(endDate).toISOString() : undefined,
+        max_attempts: maxAttempts,
+        courseId: courseId
       };
       
-      onCreateAssignment(newAssignment);
+      await onCreateAssignment(assignmentDataToSend);
+      
+      setTitle('');
+      setDescription('');
+      setType('assignment');
+      setStartDate('');
+      setEndDate('');
+      setMaxAttempts(null);
       onClose();
+
     } catch (error) {
       console.error('Error creating assignment:', error);
+      alert(`Failed to create assignment: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Create New Assignment</h3>
+    <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50 transition-opacity duration-300 ease-out" style={{ opacity: isOpen ? 1 : 0 }}>
+      <div className="bg-white rounded-lg p-6 max-w-lg w-full shadow-xl transform transition-all duration-300 ease-out" style={{ opacity: isOpen ? 1 : 0, transform: isOpen ? 'translateY(0)' : 'translateY(-20px)' }}>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Assignment</h3>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Title</label>
+              <label htmlFor="assignment-title" className="block text-sm font-medium text-gray-700">Title</label>
               <input
+                id="assignment-title"
                 type="text"
                 name="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
+              <label htmlFor="assignment-description" className="block text-sm font-medium text-gray-700">Description</label>
               <textarea
+                id="assignment-description"
                 name="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 rows={3}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Type</label>
+              <label htmlFor="assignment-type" className="block text-sm font-medium text-gray-700">Type</label>
               <select
+                id="assignment-type"
                 name="type"
+                value={type}
+                onChange={(e) => setType(e.target.value)}
                 required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-2 px-3 sm:text-sm"
               >
-                <option value="quiz">Quiz</option>
                 <option value="assignment">Assignment</option>
+                <option value="quiz">Quiz</option>
                 <option value="project">Project</option>
                 <option value="exam">Exam</option>
               </select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Start Date</label>
+                <label htmlFor="assignment-start-date" className="block text-sm font-medium text-gray-700">Start Date</label>
                 <input
-                  type="date"
+                  id="assignment-start-date"
+                  type="datetime-local"
                   name="startDate"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
                   required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">End Date</label>
+                <label htmlFor="assignment-end-date" className="block text-sm font-medium text-gray-700">End Date / Due Date</label>
                 <input
-                  type="date"
+                  id="assignment-end-date"
+                  type="datetime-local"
                   name="endDate"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
                   required
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                 />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Max Attempts (leave empty for unlimited)</label>
+              <label htmlFor="assignment-max-attempts" className="block text-sm font-medium text-gray-700">Max Attempts (optional)</label>
               <input
+                id="assignment-max-attempts"
                 type="number"
                 name="maxAttempts"
+                value={maxAttempts ?? ''}
+                onChange={(e) => setMaxAttempts(e.target.value ? parseInt(e.target.value) : null)}
                 min="1"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                placeholder="Leave empty for unlimited"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Course</label>
-              <div className="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-gray-700">
-                {selectedCourse.title}
-                <input type="hidden" name="courseId" value={selectedCourse.id} />
-              </div>
             </div>
           </div>
           <div className="mt-6 flex justify-end space-x-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50"
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               disabled={isSubmitting}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center"
+              className="inline-flex justify-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               disabled={isSubmitting}
             >
               {isSubmitting ? (
@@ -141,7 +160,7 @@ export default function CreateAssignmentModal({
                   Creating...
                 </>
               ) : (
-                'Create'
+                'Create Assignment'
               )}
             </button>
           </div>

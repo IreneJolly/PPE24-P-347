@@ -1,119 +1,162 @@
 import { useState } from 'react';
 import { AddMaterialModalProps } from '../types';
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/client';
+
+// Initialize Supabase client ONCE outside the component
+const supabase = createClient();
 
 export default function AddMaterialModal({
   isOpen,
   onClose,
-  selectedCourse,
-  onAddCourseMaterial
+  courseId,
+  onMaterialAdded
 }: AddMaterialModalProps) {
-  const [isUploadingMaterial, setIsUploadingMaterial] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [materialFile, setMaterialFile] = useState<File | null>(null);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
 
-  // Récupérer les variables d'environnement
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string ?? '';  // URL de Supabase
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string ?? '';  // Clé anonyme de Supabase
-
-  // Créer le client Supabase
-  const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-  if (!isOpen || !selectedCourse) return null;
+  if (!isOpen || !courseId) return null;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setMaterialFile(e.target.files[0]);
+    } else {
+      setMaterialFile(null);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!materialFile || !selectedCourse || !supabase) {
-      console.error('Required parameters are missing');
-      return; // Quittez la fonction si une valeur requise est manquante  
+    if (!materialFile || !courseId) {
+      console.error('File or Course ID is missing');
+      alert('Please select a file to upload.')
+      return;
     }
 
-    setIsUploadingMaterial(true);
+    setIsUploading(true);
     try {
-      const formData = new FormData(e.currentTarget);
-      const title = formData.get('title') as string;
-      const description = formData.get('description') as string;
-      const courseId = selectedCourse.id; 
-      const filePath = `course_materials/${courseId}/${materialFile.name}`;
+      const fileExt = materialFile.name.split('.').pop();
+      const uniqueFileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      const filePath = `course_materials/${courseId}/${uniqueFileName}`;
 
-      await onAddCourseMaterial({
-        courseId,
-        title,
-        fileUrl: filePath,
-        description,
-        file: materialFile
-      });
+      console.log(`Uploading file to path: ${filePath}`);
 
-      console.log("Test : ", filePath);
+      const { data: uploadData, error: uploadError } = await supabase
+        .storage
+        .from('course_attachments')
+        .upload(filePath, materialFile);
 
-      onClose();
+      if (uploadError) {
+        console.error('Supabase storage upload error:', uploadError);
+        alert(`Storage Error: ${uploadError.message}`);
+        throw uploadError;
+      }
+
+      console.log('File uploaded successfully:', uploadData);
+
+      const { data: urlData } = supabase.storage
+        .from('course_attachments')
+        .getPublicUrl(filePath); 
+        
+      const fileUrl = urlData?.publicUrl;
+      if (!fileUrl) {
+        console.error('Could not get public URL for uploaded file');
+        alert('Failed to get file URL after upload.');
+        throw new Error('Failed to get public URL');
+      }
+
+      console.log('Public URL:', fileUrl);
+
+      const { error: dbError } = await supabase
+        .from('course_attachments')
+        .insert([{
+          course_id: courseId,
+          title: title,
+          description: description,
+          file_url: fileUrl,
+          file_path: filePath,
+        }]);
+
+      if (dbError) {
+        console.error('Database insert error:', dbError);
+        alert(`Database Error: ${dbError.message}`);
+        throw dbError;
+      }
+
+      console.log('Database record created successfully');
+
+      onMaterialAdded();
+      setTitle('');
+      setDescription('');
+      setMaterialFile(null);
+      (e.target as HTMLFormElement).reset();
+
     } catch (error) {
-      console.error('Error uploading material:', error);
+      console.error('Error during material upload process:', error);
     } finally {
-      setIsUploadingMaterial(false);
+      setIsUploading(false);
     }
   };
 
   return (
     <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Add Course Material</h3>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Course</label>
-              <div className="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-gray-700">
-                {selectedCourse.title}
-                <input type="hidden" name="courseId" value={selectedCourse.id} />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Title</label>
+              <label htmlFor="material-title" className="block text-sm font-medium text-gray-700">Title</label>
               <input
                 type="text"
+                id="material-title"
                 name="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 required
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
+              <label htmlFor="material-description" className="block text-sm font-medium text-gray-700">Description</label>
               <textarea
+                id="material-description"
                 name="description"
-                rows={2}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">File</label>
+              <label htmlFor="material-file" className="block text-sm font-medium text-gray-700">File</label>
               <input
+                id="material-file"
                 type="file"
                 onChange={handleFileChange}
                 required
                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
               />
+              {materialFile && (
+                <p className="mt-1 text-xs text-green-600">Selected: {materialFile.name}</p>
+              )}
             </div>
           </div>
           <div className="mt-6 flex justify-end space-x-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50"
-              disabled={isUploadingMaterial}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              disabled={isUploading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center"
-              disabled={isUploadingMaterial || !materialFile}
+              className="inline-flex justify-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              disabled={isUploading || !materialFile}
             >
-              {isUploadingMaterial ? (
+              {isUploading ? (
                 <>
                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -122,7 +165,7 @@ export default function AddMaterialModal({
                   Uploading...
                 </>
               ) : (
-                'Upload'
+                'Upload Material'
               )}
             </button>
           </div>

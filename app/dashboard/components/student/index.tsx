@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { StudentDashboardProps } from './types';
 import { Assignment } from '@/lib/types';
+import FeaturePlaceholder from '@/app/components/FeaturePlaceholder';
 
 // Import sections
 import ProgressSection from './sections/ProgressSection';
@@ -12,6 +13,8 @@ import CourseDetail from './sections/CourseDetail';
 // Import modals
 import SubmitAssignmentModal from './modals/SubmitAssignmentModal';
 
+// Initialize Supabase client ONCE outside the component
+const supabase = createClient();
 
 export default function StudentDashboard({
   user,
@@ -27,8 +30,6 @@ export default function StudentDashboard({
   const [courseMaterials, setCourseMaterials] = useState<any[]>([]);
   const [courseAssignments, setCourseAssignments] = useState<any[]>([]);
   const [courseCompetence, setCourseCompetence] = useState<any[]>([]);
-
-  const supabase = createClient();
 
   async function fetchMaterials() {
     if (!selectedCourse) return;
@@ -139,30 +140,38 @@ export default function StudentDashboard({
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {/* Progress Section */}
-      <ProgressSection
-        user={user}
-        courses={courses}
-        selectedCourse={selectedCourse}
-        setSelectedCourse={setSelectedCourse} />
+    <div className="space-y-6">
+      {/* Feature Placeholders Section */}
+      <div className="p-4 border rounded-lg bg-gray-50">
+        <h2 className="text-xl font-semibold mb-3">Prochainement</h2>
+        <div className="flex flex-wrap gap-2">
+          <FeaturePlaceholder featureName="Voir mes Notes" />
+          <FeaturePlaceholder featureName="Calendrier des Cours" />
+          <FeaturePlaceholder featureName="Messagerie" />
+        </div>
+      </div>
 
-      {/* Assignments Section */}
-      <AssignmentsSection
-        courses={courses}
-        assignments={sortedAssignments}
-        evaluations={evaluations}
-        onOpenSubmitModal={handleOpenSubmitModal}
-        formatAssignmentDate={formatAssignmentDate}
-        getAssignmentStatus={getAssignmentStatus}
-      />
+      {/* Existing Sections - Wrap them if needed or keep vertical stack */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Progress Section */}
+        <ProgressSection
+          user={user}
+          courses={courses}
+          selectedCourse={selectedCourse}
+          setSelectedCourse={setSelectedCourse} />
 
-      {/* Submit Assignment Modal */}
-      <SubmitAssignmentModal
-        assignment={selectedAssignment}
-        onClose={handleCloseSubmitModal}
-        onSubmitAssignment={onSubmitAssignment}
-      />
+        {/* Assignments Section */}
+        <AssignmentsSection
+          courses={courses}
+          assignments={sortedAssignments}
+          evaluations={evaluations}
+          onOpenSubmitModal={handleOpenSubmitModal}
+          formatAssignmentDate={formatAssignmentDate}
+          getAssignmentStatus={getAssignmentStatus}
+        />
+      </div>
+      
+      {/* Conditionally rendered CourseDetail */}
       {selectedCourse && (
         <CourseDetail
           user={user}
@@ -172,6 +181,13 @@ export default function StudentDashboard({
           courseCompetence={courseCompetence}
         />
       )}
+
+      {/* Submit Assignment Modal */}
+      <SubmitAssignmentModal
+        assignment={selectedAssignment}
+        onClose={handleCloseSubmitModal}
+        onSubmitAssignment={onSubmitAssignment}
+      />
     </div>
   );
 } 

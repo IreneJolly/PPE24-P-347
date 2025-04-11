@@ -1,19 +1,30 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { TeacherDashboardProps } from './types';
+import {
+  TeacherDashboardProps,
+  Course,
+  Evaluation,
+  UserProfile,
+  CentralCompetence as Competence,
+  Assignment,
+  UserRole
+} from './types';
+import FeaturePlaceholder from '@/app/components/FeaturePlaceholder';
 
-// Import sections
+// Import sections and modals
 import CourseList from './sections/CourseList';
 import PendingEvaluations from './sections/PendingEvaluations';
 import CourseDetail from './sections/CourseDetail';
-
-// Import modals
 import CreateCourseModal from './modals/CreateCourseModal';
 import AddMaterialModal from './modals/AddMaterialModal';
 import AddCompetenceModal from './modals/AddCompetenceModal';
 import CreateAssignmentModal from './modals/CreateAssignmentModal';
 import EnrollStudentsModal from './modals/EnrollStudentsModal';
 import UpdateMaterialModal from './modals/UpdateMaterialModal';
+import UpdateCompetenceModal from './modals/UpdateCompetenceModal';
+
+// Initialize Supabase client ONCE outside the component
+const supabase = createClient();
 
 export default function TeacherDashboard({
   user,
@@ -21,23 +32,25 @@ export default function TeacherDashboard({
   pendingEvaluations = [],
   students: initialStudents = [],
   onUpdateEvaluation = () => { },
-  onCreateAssignment = () => { },
+  onCreateAssignment = async () => { },
   onCreateCourse = async () => null,
   onAddCourseMaterial = async () => { },
-  onAddCompetence = async () => { }
+  onAddCompetence = async () => { },
+  onUpdateCompetence = async () => { },
+  onDeleteCompetence = async () => { },
+  onDeleteMaterial = async () => { },
+  onEnrollStudentsHandler = async () => { }
 }: TeacherDashboardProps) {
-  // State for data
-  const [courses, setCourses] = useState(initialCourses);
-  const [selectedCourse, setSelectedCourse] = useState<null | any>(null);
+  // State declarations
+  const [courses, setCourses] = useState<Course[]>(initialCourses);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [materials, setMaterials] = useState<any[]>([]);
-  const [assignments, setAssignments] = useState<any[]>([]);
-  const [students, setStudents] = useState(initialStudents);
-  const [enrolledStudents, setEnrolledStudents] = useState<any[]>([]);
-  const [courseMaterials, setCourseMaterials] = useState<any[]>([]);
-  const [courseCompetence, setCourseCompetence] = useState<any[]>([]);
-  const [courseAssignments, setCourseAssignments] = useState<any[]>([]);
+  const [competences, setCompetences] = useState<Competence[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [students, setStudents] = useState<UserProfile[]>(initialStudents);
+  const [enrolledStudents, setEnrolledStudents] = useState<UserProfile[]>([]);
 
-  // State for modals
+  // Modal states...
   const [isCreateCourseModalOpen, setIsCreateCourseModalOpen] = useState(false);
   const [isAddMaterialModalOpen, setIsAddMaterialModalOpen] = useState(false);
   const [isAddCompetenceModalOpen, setIsAddCompetenceModalOpen] = useState(false);
@@ -46,614 +59,484 @@ export default function TeacherDashboard({
   const [isUpdateMaterialModalOpen, setIsUpdateMaterialModalOpen] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState<any>(null);
   const [isUpdateCompetenceModalOpen, setIsUpdateCompetenceModalOpen] = useState(false);
-  const [selectedCompetence, setSelectedCompetence] = useState<any>(null);
+  const [selectedCompetence, setSelectedCompetence] = useState<Competence | null>(null);
 
-  const supabase = createClient();
+  // Helper function to determine UserRole
+  const determineUserRole = (roles: string[] | null | undefined): UserRole => {
+    if (roles?.includes('admin')) return 'admin';
+    if (roles?.includes('teacher')) return 'teacher';
+    return 'student'; // Default to student
+  };
 
-  // Fetch course materials when selected course changes
-  async function fetchMaterials() {
+  // Fetch course details (materials, competences, assignments)
+  async function fetchCourseDetails() {
     if (!selectedCourse) return;
-
+    console.log(`Fetching details for course: ${selectedCourse.id}`);
     try {
+      // Fetch materials
       const { data: materialsData, error: materialsError } = await supabase
-        .from('course_attachments')
-        .select('*')
-        .eq('course_id', selectedCourse.id);
-
+        .from('course_attachments').select('*').eq('course_id', selectedCourse.id);
       if (materialsError) {
+        console.error('Materials fetch error:', materialsError);
         throw materialsError;
       }
-
       setMaterials(materialsData || []);
-      setCourseMaterials(materialsData || []);
+      console.log(`Fetched ${materialsData?.length || 0} materials`);
 
+      // Fetch competences
       const { data: competenceData, error: competenceError } = await supabase
-        .from('competence')
-        .select('*')
-        .eq('course_id', selectedCourse.id);
+        .from('competence').select('*').eq('course_id', selectedCourse.id);
+      if (competenceError) throw competenceError;
+      
+      // Map to the CENTRAL Competence type (@/lib/types)
+      const fetchedCompetences: Competence[] = (competenceData || []).map(c => ({
+        id: c.id,
+        // course_id is optional in central type, handle accordingly
+        course_id: c.course_id, 
+        // Use 'title' as defined in @/lib/types/Competence
+        title: c.title || c.competence || '', // Use title field, fallback to competence if needed
+        description: c.description || '',
+        // created_at is not part of the central type, omit it
+      })).filter(c => typeof c.id === 'number' && typeof c.title === 'string'); // Add filter for safety
+      
+      setCompetences(fetchedCompetences); // State type now matches prop type
 
-      if (competenceError) {
-        throw competenceError;
+      // Fetch assignments
+      const { data: assignmentsData, error: assignmentsError } = await supabase
+        .from('assignments').select('*').eq('course_id', selectedCourse.id);
+      if (assignmentsError) {
+        console.error('Assignments fetch error:', assignmentsError);
+        throw assignmentsError;
       }
+      const fetchedAssignments: Assignment[] = (assignmentsData || []).map(a => ({
+        id: a.id,
+        title: a.title || '',
+        course_id: a.course_id,
+        description: a.description,
+        dueDate: a.end_date,
+        status: 'pending',
+        type: a.type,
+        start_date: a.start_date,
+        end_date: a.end_date,
+        max_attempts: a.max_attempts
+      }));
+      setAssignments(fetchedAssignments);
+      console.log(`Fetched ${fetchedAssignments.length} assignments`);
 
-      setCourseCompetence(competenceData || []);
     } catch (error) {
-      console.error('Error fetching course materials:', error);
+      console.error(`Error fetching course details for course ${selectedCourse.id}:`, error);
+      setMaterials([]);
+      setCompetences([]);
+      setAssignments([]);
     }
   }
 
-  // Fetch course assignments when selected course changes
-  async function fetchAssignments() {
-    if (!selectedCourse) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('assignments')
-        .select('*')
-        .eq('course_id', selectedCourse.id);
-
-      if (error) {
-        throw error;
-      }
-
-      setAssignments(data || []);
-      setCourseAssignments(data || []);
-    } catch (error) {
-      console.error('Error fetching course assignments:', error);
-    }
-  }
-
-  // Fetch enrolled students
+  // Fetch enrolled students with corrected type mapping
   async function fetchEnrolledStudents() {
     if (!selectedCourse) return;
-
+    console.log(`Fetching enrolled students for course: ${selectedCourse.id}`);
     try {
       const { data, error } = await supabase
         .from('enrollments')
-        .select(`
-          student_id,
-          users!enrollments_student_id_fkey (
-            id,
-            email,
-            full_name,
-            roles
-          )
-        `)
+        .select(`student_id, users:users!inner (id, email, full_name, roles, created_at)`)
         .eq('course_id', selectedCourse.id);
-
       if (error) {
-        console.error('Supabase error fetching enrolled students:', error);
-        throw error;
+          console.error('Enrolled students fetch error:', error);
+          throw error;
       }
 
-      // Transform the data to match the expected format
-      const students = data?.map((enrollment: any) => ({
+      const fetchedStudents: UserProfile[] = data?.map((enrollment: any) => ({
         id: enrollment.users.id,
         email: enrollment.users.email,
+        full_name: enrollment.users.full_name || '',
         first_name: enrollment.users.full_name?.split(' ')[0] || '',
         last_name: enrollment.users.full_name?.split(' ').slice(1).join(' ') || '',
-        roles: enrollment.users.roles
+        role: determineUserRole(enrollment.users.roles),
+        roles: enrollment.users.roles || [],
+        created_at: enrollment.users.created_at || new Date().toISOString(),
       })) || [];
-
-      setEnrolledStudents(students);
+      setEnrolledStudents(fetchedStudents);
+      console.log(`Fetched ${fetchedStudents.length} enrolled students`);
     } catch (error) {
       console.error('Error fetching enrolled students:', error);
-      setEnrolledStudents([]); // Reset on error
+      setEnrolledStudents([]);
     }
   }
 
   // Fetch data when selected course changes
   useEffect(() => {
     if (selectedCourse) {
-      fetchMaterials();
-      fetchAssignments();
+      fetchCourseDetails();
       fetchEnrolledStudents();
     } else {
-      setCourseMaterials([]);
-      setCourseAssignments([]);
+      // Clear data when no course is selected
+      setMaterials([]);
+      setCompetences([]);
+      setAssignments([]);
       setEnrolledStudents([]);
     }
   }, [selectedCourse]);
 
-  // Fetch all courses if not provided
+  // Fetch courses taught by the current teacher
   useEffect(() => {
     async function fetchCourses() {
+      if (!user?.id) return;
       try {
-        console.log('Fetching courses for teacher...');
-
-        // First try to get courses that this teacher is associated with
         const { data: teacherCourses, error: teacherCoursesError } = await supabase
           .from('course_teachers')
-          .select(`
-            course_id,
-            courses:course_id (
-              id,
-              title,
-              description
-            )
-          `)
-          .eq('teacher_id', user?.id);
+          // Select needed fields, including the joined course fields
+          .select(`course_id, courses:courses!inner (id, title, description)`) 
+          .eq('teacher_id', user.id);
 
-        if (teacherCoursesError) {
-          console.error('Error fetching teacher courses:', teacherCoursesError);
+        if (teacherCoursesError) throw teacherCoursesError;
 
-          // Fallback to direct courses query
-          const { data, error } = await supabase
-            .from('courses')
-            .select('*');
-
-          if (error) {
-            console.error('Detailed error fetching courses:', {
-              message: error.message,
-              code: error.code,
-              details: error.details,
-              hint: error.hint
-            });
-            throw error;
-          }
-
-          console.log('Courses fetched successfully:', data?.length || 0);
-          setCourses(data || []);
-        } else {
-          console.log('Teacher courses fetched successfully:', teacherCourses?.length || 0);
-
-          if (teacherCourses && teacherCourses.length > 0) {
-            const formattedCourses = teacherCourses
-              .filter(tc => tc.courses) // Filter out any null entries
-              .map(tc => {
-                // Safely extract course data with type checking
-                const courseData = tc.courses as unknown as {
-                  id: number;
-                  title: string;
-                  description: string | null;
-                };
-
-                return {
-                  id: courseData.id,
-                  title: courseData.title,
-                  description: courseData.description || ''
-                };
-              });
-
-            setCourses(formattedCourses);
-          } else {
-            setCourses([]);
-          }
-        }
+        // Map precisely to the Course type, respecting optional fields
+        const formattedCourses: Course[] = teacherCourses?.map(tc => {
+            const courseData = tc.courses as any; // Cast to any for intermediate access
+            
+            // Construct the Course object conditionally
+            const courseObject: Course = {
+                id: courseData.id,         // Required
+                title: courseData.title,     // Required
+            };
+            
+            // Add optional fields only if they exist in the fetched data
+            if (courseData.description !== null && courseData.description !== undefined) {
+                courseObject.description = courseData.description;
+            }
+            // Add teacher_id (which is optional in Course type)
+            courseObject.teacher_id = user.id; 
+            // Add progress if needed/fetched, otherwise it remains undefined (optional)
+            // courseObject.progress = courseData.progress; 
+            
+            // Basic validation - ensure id and title are present
+            if (typeof courseObject.id !== 'number' || typeof courseObject.title !== 'string') {
+                console.warn('Skipping invalid course data:', courseData);
+                return null; // Skip this entry if essential fields are missing
+            }
+            
+            return courseObject;
+        }).filter((course): course is Course => course !== null) || []; // Filter out nulls
+          
+        setCourses(formattedCourses);
       } catch (error) {
         console.error('Error fetching courses:', error);
+        setCourses([]);
       }
     }
-
-    // Only fetch courses if no initial courses were provided
-    if (initialCourses.length === 0) {
+    if (initialCourses.length === 0 && user?.id) {
       fetchCourses();
     }
-  }, [initialCourses, user]);
+  }, [initialCourses, user?.id]);
 
-  // Fetch all students if not provided
+  // Fetch all students for enrollment modal
   useEffect(() => {
     async function fetchStudents() {
+        console.log('Fetching all students');
       try {
-        // Fetch users where the 'roles' array contains 'student'
         const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          // Use contains filter for the roles array
+          .from('users').select('id, email, full_name, roles, created_at')
           .contains('roles', ['student']);
-
         if (error) {
-          console.error('Supabase error fetching students:', error);
-          throw error;
+            console.error('All students fetch error:', error);
+            throw error;
         }
-
-        console.log(`Fetched ${data?.length || 0} students`);
-        setStudents(data || []);
+        
+        const fetchedStudents: UserProfile[] = data?.map(u => ({
+          id: u.id,
+          email: u.email,
+          full_name: u.full_name || '',
+          first_name: u.full_name?.split(' ')[0] || '',
+          last_name: u.full_name?.split(' ').slice(1).join(' ') || '',
+          role: determineUserRole(u.roles),
+          roles: u.roles || [],
+          created_at: u.created_at || new Date().toISOString(),
+        })) || [];
+        setStudents(fetchedStudents);
+        console.log(`Fetched ${fetchedStudents.length} total students`);
       } catch (error) {
-        // Log the error but don't necessarily crash the component
-        console.error('Error in fetchStudents logic:', error);
-        setStudents([]); // Reset students on error
+        console.error('Error fetching students:', error);
+        setStudents([]);
       }
     }
-
-    // Only fetch students if no initial students were provided
-    // Or maybe fetch always if the list might change?
-    // For now, sticking to initial check.
+    // Fetch students only if the initial list is empty
     if (initialStudents.length === 0) {
       fetchStudents();
     }
-  }, [initialStudents, supabase]); // Added supabase dependency
+  }, [initialStudents]);
 
-  // Enroll students in a course
-  async function onEnrollStudents(courseId: number, studentIds: string[]) {
-    try {
-      // First check if any of these students are already enrolled
-      const { data: existingEnrollments, error: checkError } = await supabase
-        .from('enrollments')
-        .select('student_id')
-        .eq('course_id', courseId)
-        .in('student_id', studentIds);
+  // --- Handlers for Modals/Actions ---
 
-      if (checkError) {
-        console.error('Error checking existing enrollments:', checkError);
-        throw checkError;
-      }
-
-      // Filter out already enrolled students
-      const existingStudentIds = existingEnrollments?.map(e => e.student_id) || [];
-      const newStudentIds = studentIds.filter(id => !existingStudentIds.includes(id));
-
-      if (newStudentIds.length === 0) {
-        console.log('All selected students are already enrolled');
-        return;
-      }
-
-      // Create enrollment objects for new students only
-      const enrollments = newStudentIds.map(studentId => ({
-        course_id: courseId,
-        student_id: studentId,
-        enrollment_date: new Date().toISOString()
-      }));
-
-      const { error: insertError } = await supabase
-        .from('enrollments')
-        .insert(enrollments);
-
-      if (insertError) {
-        console.error('Supabase error enrolling students:', insertError);
-        throw insertError;
-      }
-
-      // Refresh enrolled students after successful enrollment
-      await fetchEnrolledStudents();
-    } catch (error) {
-      console.error('Error enrolling students:', error);
-      throw error;
-    }
-  }
-
-  // Handle creating a course
   const handleCreateCourse = async (courseData: { title: string; description: string }) => {
-    const newCourse = await onCreateCourse(courseData);
-    if (newCourse) {
-      setCourses([...courses, newCourse]);
-      setSelectedCourse(newCourse);
+    console.log('Attempting to create course:', courseData.title);
+    try {
+        const newCourse = await onCreateCourse(courseData); // Call prop function
+        if (newCourse) {
+          setCourses(prev => [...prev, newCourse]);
+          setIsCreateCourseModalOpen(false);
+          setSelectedCourse(newCourse); 
+          console.log('Course created successfully:', newCourse.id);
+          // Return the created course to match Promise<Course | null>
+          return newCourse; 
+        } else {
+            console.error('onCreateCourse prop did not return a course object.');
+            alert('Failed to create course. Please check console.');
+            return null; // Return null on failure
+        }
+    } catch (error) {
+        console.error('Error in handleCreateCourse:', error);
+        alert(`Error creating course: ${error instanceof Error ? error.message : String(error)}`);
+        return null; // Return null on error
     }
-    return newCourse;
   };
 
-  // Handle adding material to a course
-  const handleAddMaterial = async (material: { courseId: number; title: string; fileUrl: string; description: string; file: File }) => {
-    try {
-      // Upload file to Supabase Storage
-      const { courseId, title, description, file } = material;
+  const handleAddMaterial = async (materialData: { courseId: number; title: string; fileUrl: string; description: string; file?: File }) => {
+    console.log('Adding material:', materialData.title);
+     try {
+       await onAddCourseMaterial(materialData);
+       fetchCourseDetails();
+       setIsAddMaterialModalOpen(false);
+       console.log('Material added successfully');
+     } catch (error) {
+       console.error('Error adding material:', error);
+       alert(`Error adding material: ${error instanceof Error ? error.message : String(error)}`);
+     }
+   };
 
-      // Create a unique file path
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-
-      // Use teacher UUID as bucket name and course ID as folder
-      const bucketName = selectedCourse.title;
-      const filePath = `course_materials/${courseId}/${title}`;
-
-      console.log(`Uploading new file to ${bucketName}/${filePath}`);
-
-      // Upload the file to Supabase storage
-      const { data: uploadData, error: uploadError } = await supabase
-        .storage
-        .from(bucketName)
-        .upload(filePath, file);
-
-      if (uploadError) {
-        throw uploadError;
+  const handleAddCompetence = async (competenceData: { courseId: number; competence: string; description: string; }) => {
+      console.log('Adding competence:', competenceData.competence);
+      if (!selectedCourse) return;
+      try {
+        await onAddCompetence({...competenceData, courseId: selectedCourse.id });
+        fetchCourseDetails();
+        setIsAddCompetenceModalOpen(false);
+        console.log('Competence added successfully');
+      } catch (error) {
+          console.error('Error adding competence:', error);
+          alert(`Error adding competence: ${error instanceof Error ? error.message : String(error)}`);
       }
-
-      // Get the public URL for the uploaded file
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucketName)
-        .getPublicUrl(filePath);
-
-      // Save the material info to the database
-      await onAddCourseMaterial({
-        courseId,
-        title,
-        fileUrl: publicUrl,
-        description
-      });
-
-      // Refresh the materials list
-      fetchMaterials();
-    } catch (error) {
-      console.error('Error adding material:', error);
-      alert('Failed to upload file. Please try again or contact support.');
-    }
   };
 
-  // Handle adding material to a course
-  const handleAddCompetence = async (competence: { courseId: number; title: string; description: string; }) => {
+  const handleCreateAssignment = async (assignmentData: Omit<Assignment, 'id' | 'course_id'>) => {
+      console.log('Creating assignment:', assignmentData.title);
+    if (!selectedCourse) return;
     try {
-      // Upload file to Supabase Storage
-      const { courseId, title, description } = competence;
-
-      const { error: insertError } = await supabase
-        .from('competence')
-        .insert(competence);
-
-      // Save the material info to the database
-      await onAddCompetence({
-        courseId,
-        title,
-        description
-      });
-
-      // Refresh the materials list
-      fetchMaterials();
+        await onCreateAssignment({ ...assignmentData, course_id: selectedCourse.id });
+        fetchCourseDetails();
+        setIsCreateAssignmentModalOpen(false);
+        console.log('Assignment created successfully');
     } catch (error) {
-      console.error('Error adding material:', error);
-      alert('Failed to upload file. Please try again or contact support.');
+        console.error('Error creating assignment:', error);
+        alert(`Error creating assignment: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
-  // Handle updating a material
-  const handleUpdateMaterial = async (material: any) => {
+  const handleEnrollStudents = async (courseId: number, studentIds: string[]) => {
+      console.log(`Enrolling ${studentIds.length} students into course: ${courseId}`);
+      try {
+        await onEnrollStudentsHandler(courseId, studentIds);
+        fetchEnrolledStudents();
+        setIsEnrollStudentsModalOpen(false);
+        console.log('Students enrolled successfully');
+      } catch (error) {
+          console.error('Error enrolling students:', error);
+          alert(`Error enrolling students: ${error instanceof Error ? error.message : String(error)}`);
+      }
+  };
+
+  // Open update modals
+  const handleUpdateMaterialClick = (material: any) => {
     setSelectedMaterial(material);
     setIsUpdateMaterialModalOpen(true);
   };
-
-  // Handle updating a material
-  const handleUpdateCompetence = async (material: any) => {
-    setSelectedCompetence(material);
+  const handleUpdateCompetenceClick = (competence: Competence) => {
+    setSelectedCompetence(competence);
     setIsUpdateCompetenceModalOpen(true);
   };
 
-  // Handle updating an existing material
-  const updateMaterial = async (updatedMaterial: any) => {
-    try {
-      // If there's a new file, upload it and update the URL
-      if (updatedMaterial.file) {
-        // Delete old file if it exists
-        if (updatedMaterial.file_url) {
-          // Extract the path from the URL
-          let oldFilePath = '';
-          let courseId = updatedMaterial.course_id;
-
-          // Parse the URL to get the file path
-          if (updatedMaterial.file_url.includes('/object/')) {
-            // Example: https://xxx.supabase.co/storage/v1/object/public/teacher-uuid/course-id/filename.ext
-            const pathParts = updatedMaterial.file_url.split('/');
-            // Find the bucket name in the URL
-            const bucketIndex = pathParts.findIndex((part: string) => part === user.id);
-            if (bucketIndex !== -1 && bucketIndex < pathParts.length - 1) {
-              // Reconstruct the path after the bucket name
-              oldFilePath = pathParts.slice(bucketIndex + 1).join('/');
-            }
-          }
-
-          if (oldFilePath) {
-            console.log('Deleting old file:', oldFilePath);
-            const { error: deleteError } = await supabase.storage
-              .from(user.id)
-              .remove([oldFilePath]);
-
-            if (deleteError) {
-              console.error('Error deleting old file:', deleteError);
-              // Continue anyway to upload the new file
-            }
-          }
-        }
-
-        // Upload new file
-        const fileExt = updatedMaterial.file.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-        const filePath = `${updatedMaterial.course_id}/${fileName}`;
-
-        console.log(`Uploading new file to ${user.id}/${filePath}`);
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from(user.id)
-          .upload(filePath, updatedMaterial.file);
-
-        if (uploadError) {
-          throw uploadError;
-        }
-
-        // Get the public URL for the uploaded file
-        const { data: { publicUrl } } = supabase.storage
-          .from(user.id)
-          .getPublicUrl(filePath);
-
-        updatedMaterial.fileUrl = publicUrl;
-      }
-
-      // Update the material in the database
-      const { error } = await supabase
-        .from('course_attachments')
-        .update({
-          title: updatedMaterial.title,
-          description: updatedMaterial.description,
-          file_url: updatedMaterial.fileUrl || updatedMaterial.file_url,
-        })
-        .eq('id', updatedMaterial.id);
-
-      if (error) {
-        throw error;
-      }
-
-      // Refresh materials
-      fetchMaterials();
-    } catch (error) {
-      console.error('Error updating material:', error);
-      alert('Failed to update material. Please try again or contact support.');
-    }
+  // Callbacks from update modals
+  const handleMaterialUpdated = () => {
+      console.log('Material updated callback triggered');
+    setIsUpdateMaterialModalOpen(false);
+    setSelectedMaterial(null);
+    fetchCourseDetails();
+  };
+  const handleCompetenceUpdated = () => {
+      console.log('Competence updated callback triggered');
+    setIsUpdateCompetenceModalOpen(false);
+    setSelectedCompetence(null);
+    fetchCourseDetails();
   };
 
-  // Handle deleting a material
-  const handleDeleteMaterial = async (materialId: number) => {
-    try {
-      // First get the material to find the file URL
-      const { data: material, error: fetchError } = await supabase
-        .from('course_attachments')
-        .select('*')
-        .eq('id', materialId)
-        .single();
-
-      if (fetchError) {
-        throw fetchError;
+  // Deletion Handlers
+  const handleDeleteMaterialClick = async (materialId: number) => {
+      console.log('Deleting material:', materialId);
+      try {
+        await onDeleteMaterial(materialId);
+        fetchCourseDetails();
+        console.log('Material deleted successfully');
+      } catch (error) {
+        console.error('Error deleting material:', error);
+        alert(`Error deleting material: ${error instanceof Error ? error.message : String(error)}`);
       }
-
-      // Delete the file from storage if it exists
-      if (material && material.file_url) {
-        // Extract the path from the URL
-        let filePath = '';
-
-        // Parse the URL to get the file path
-        if (material.file_url.includes('/object/')) {
-          // Example: https://xxx.supabase.co/storage/v1/object/public/teacher-uuid/course-id/filename.ext
-          const pathParts = material.file_url.split('/');
-          // Find the bucket name in the URL
-          const bucketIndex = pathParts.findIndex((part: string) => part === user.id);
-          if (bucketIndex !== -1 && bucketIndex < pathParts.length - 1) {
-            // Reconstruct the path after the bucket name
-            filePath = pathParts.slice(bucketIndex + 1).join('/');
-          }
-        }
-
-        if (filePath) {
-          console.log(`Deleting file: ${user.id}/${filePath}`);
-          const { error: deleteError } = await supabase.storage
-            .from(user.id)
-            .remove([filePath]);
-
-          if (deleteError) {
-            console.error('Error deleting file:', deleteError);
-            // Continue anyway to delete the database entry
-          }
-        }
+  };
+  const handleDeleteCompetenceClick = async (competenceId: number) => {
+      console.log('Deleting competence:', competenceId);
+      try {
+        await onDeleteCompetence(competenceId);
+        fetchCourseDetails();
+        console.log('Competence deleted successfully');
+      } catch (error) {
+          console.error('Error deleting competence:', error);
+          alert(`Error deleting competence: ${error instanceof Error ? error.message : String(error)}`);
       }
-
-      // Delete the material from the database
-      const { error } = await supabase
-        .from('course_attachments')
-        .delete()
-        .eq('id', materialId);
-
-      if (error) {
-        throw error;
-      }
-
-      // Refresh materials
-      fetchMaterials();
-    } catch (error) {
-      console.error('Error deleting material:', error);
-      alert('Failed to delete material. Please try again or contact support.');
-    }
   };
 
-  // Handle deleting a competence
-  const handleDeleteCompetence = async (competenceId: number) => {
-    try {
-      // Delete the material from the database
-      const { error } = await supabase
-        .from('competence')
-        .delete()
-        .eq('id', competenceId);
+  // Handler to be passed TO UpdateMaterialModal
+  // This likely needs to call the onUpdateMaterial prop passed TO TeacherDashboard
+  // Assuming there's an onUpdateMaterial prop passed to TeacherDashboard
+  const handleUpdateMaterialSubmit = async (updatedMaterialData: any) => {
+      console.log('Submitting updated material:', updatedMaterialData);
+      // Assuming TeacherDashboardProps includes onUpdateMaterial: (material: any) => Promise<void>
+      // const onUpdateMaterialProp = (props as any).onUpdateMaterial; // Access prop if needed
+      try {
+          // Call the prop function passed to TeacherDashboard (if available)
+          // await onUpdateMaterialProp(updatedMaterialData);
+          
+          // Placeholder: Directly update via Supabase if prop isn't passed
+          // This might duplicate logic from the parent page, ideally call a prop
+          const { error } = await supabase
+              .from('course_attachments')
+              .update({
+                  title: updatedMaterialData.title,
+                  description: updatedMaterialData.description,
+                  // Add file_url update logic if needed (handle file upload within modal or here)
+              })
+              .eq('id', updatedMaterialData.id);
+          if (error) throw error;
 
-      if (error) {
-        throw error;
+          // Close modal and refresh after successful update
+          setIsUpdateMaterialModalOpen(false);
+          setSelectedMaterial(null);
+          await fetchCourseDetails(); // Refresh details
+          console.log('Material updated successfully via internal handler');
+      } catch (error) {
+          console.error('Error updating material in submit handler:', error);
+          alert(`Failed to update material: ${error instanceof Error ? error.message : String(error)}`);
+          // Optionally re-throw or handle error state
       }
-
-      // Refresh materials
-      fetchMaterials();
-    } catch (error) {
-      console.error('Error deleting material:', error);
-      alert('Failed to delete material. Please try again or contact support.');
-    }
   };
 
-  // Handle creating an assignment
-  const handleCreateAssignment = (assignmentData: any) => {
-    onCreateAssignment(assignmentData);
-    fetchAssignments();
-  };
-
+  // --- Render --- 
   return (
-    <div className="grid grid-cols-1 gap-6">
-      {/* Course List Section */}
-      <CourseList
-        courses={courses}
-        selectedCourse={selectedCourse}
-        setSelectedCourse={setSelectedCourse}
-        onCreateCourse={() => setIsCreateCourseModalOpen(true)}
-      />
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-4">
+      {/* Left Column */}
+      <div className="lg:col-span-1 flex flex-col gap-6">
+        {/* Feature Placeholders Section */} 
+        <div className="p-4 border rounded-lg bg-gray-50 shadow-sm">
+          <h2 className="text-xl font-semibold mb-3">Fonctionnalités à venir</h2>
+          <div className="flex flex-wrap gap-2">
+            <FeaturePlaceholder featureName="Gestion des Notes" />
+            <FeaturePlaceholder featureName="Annonces de Cours" />
+            <FeaturePlaceholder featureName="Forum de Discussion" />
+          </div>
+        </div>
 
-      {/* Pending Evaluations Section */}
-      <PendingEvaluations
-        pendingEvaluations={pendingEvaluations}
-        students={students}
-        courses={courses}
-        onUpdateEvaluation={onUpdateEvaluation}
-      />
-
-      {/* Course Detail Section (visible when a course is selected) */}
-      {selectedCourse && (
-        <CourseDetail
+        {/* Course List Card */}
+        <CourseList
+          courses={courses}
           selectedCourse={selectedCourse}
-          courseMaterials={courseMaterials}
-          courseCompetence={courseCompetence}
-          courseAssignments={courseAssignments}
-          enrolledStudents={enrolledStudents}
-          onAddAssignment={() => setIsCreateAssignmentModalOpen(true)}
-          onAddMaterial={() => setIsAddMaterialModalOpen(true)}
-          onEnrollStudents={() => setIsEnrollStudentsModalOpen(true)}
-          onUpdateMaterial={handleUpdateMaterial}
-          onDeleteMaterial={handleDeleteMaterial}
-          onAddCompetence={() => setIsAddCompetenceModalOpen(true)}
-          onUpdateCompetence={handleUpdateCompetence}
-          onDeleteCompetence={handleDeleteCompetence}
+          setSelectedCourse={setSelectedCourse}
+          onCreateCourse={() => setIsCreateCourseModalOpen(true)}
         />
-      )}
+        
+        {/* Pending Evaluations Card */}
+        <PendingEvaluations
+          pendingEvaluations={pendingEvaluations}
+          students={students}
+          courses={courses}
+          onUpdateEvaluation={onUpdateEvaluation}
+        />
+      </div>
 
-      {/* Modals */}
+      {/* Right Column: Course Details */}
+      <div className="lg:col-span-2">
+        {selectedCourse ? (
+          <CourseDetail
+            selectedCourse={selectedCourse}
+            courseMaterials={materials}
+            courseCompetence={competences}
+            courseAssignments={assignments}
+            enrolledStudents={enrolledStudents}
+            onAddMaterial={() => setIsAddMaterialModalOpen(true)}
+            onAddCompetence={() => setIsAddCompetenceModalOpen(true)}
+            onAddAssignment={() => setIsCreateAssignmentModalOpen(true)}
+            onEnrollStudents={() => setIsEnrollStudentsModalOpen(true)}
+            onUpdateMaterial={handleUpdateMaterialClick}
+            onDeleteMaterial={handleDeleteMaterialClick}
+            onUpdateCompetence={handleUpdateCompetenceClick}
+            onDeleteCompetence={handleDeleteCompetenceClick}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-64 p-6 bg-white rounded-lg shadow-md">
+            <p className="text-center text-gray-500">
+              Sélectionnez un cours dans la liste de gauche pour voir ses détails et gérer son contenu.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Modals */} 
       <CreateCourseModal
         isOpen={isCreateCourseModalOpen}
         onClose={() => setIsCreateCourseModalOpen(false)}
         onCreateCourse={handleCreateCourse}
       />
-
       <AddMaterialModal
         isOpen={isAddMaterialModalOpen}
         onClose={() => setIsAddMaterialModalOpen(false)}
-        selectedCourse={selectedCourse}
-        onAddCourseMaterial={handleAddMaterial}
+        courseId={selectedCourse?.id}
+        onMaterialAdded={() => {
+            console.log('AddMaterialModal closed, refreshing details...');
+            fetchCourseDetails(); 
+            setIsAddMaterialModalOpen(false);
+        }} 
       />
-
       <AddCompetenceModal
         isOpen={isAddCompetenceModalOpen}
         onClose={() => setIsAddCompetenceModalOpen(false)}
-        selectedCourse={selectedCourse}
-        onAddCompetence={handleAddCompetence}
+        courseId={selectedCourse?.id}
+        onCompetenceAdded={() => {
+            console.log('AddCompetenceModal closed, refreshing details...');
+            fetchCourseDetails();
+            setIsAddCompetenceModalOpen(false);
+        }}
       />
-
       <CreateAssignmentModal
         isOpen={isCreateAssignmentModalOpen}
         onClose={() => setIsCreateAssignmentModalOpen(false)}
-        selectedCourse={selectedCourse}
+        courseId={selectedCourse?.id}
         onCreateAssignment={handleCreateAssignment}
       />
-
       <EnrollStudentsModal
         isOpen={isEnrollStudentsModalOpen}
         onClose={() => setIsEnrollStudentsModalOpen(false)}
-        selectedCourse={selectedCourse}
-        students={students}
-        enrolledStudents={enrolledStudents}
-        onEnrollStudents={onEnrollStudents}
+        courseId={selectedCourse?.id}
+        allStudents={students}
+        enrolledStudentIds={enrolledStudents.map(s => s.id)}
+        onEnroll={handleEnrollStudents} 
       />
-
       <UpdateMaterialModal
         isOpen={isUpdateMaterialModalOpen}
-        onClose={() => setIsUpdateMaterialModalOpen(false)}
+        onClose={() => { setIsUpdateMaterialModalOpen(false); setSelectedMaterial(null); }}
         material={selectedMaterial}
-        onUpdateMaterial={updateMaterial}
+        onUpdateMaterial={handleUpdateMaterialSubmit}
+      />
+      <UpdateCompetenceModal
+        isOpen={isUpdateCompetenceModalOpen}
+        onClose={() => { setIsUpdateCompetenceModalOpen(false); setSelectedCompetence(null); }}
+        competence={selectedCompetence}
+        onCompetenceUpdated={handleCompetenceUpdated}
       />
     </div>
   );

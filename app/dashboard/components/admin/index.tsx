@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AdminDashboardProps } from './types';
 import { UserProfile } from '@/lib/types';
+import FeaturePlaceholder from '@/app/components/FeaturePlaceholder';
 
 // Import sections
 import UserManagement from './sections/UserManagement';
@@ -55,7 +56,17 @@ export default function AdminDashboard({
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="space-y-6">
+      {/* Feature Placeholders Section */}
+      <div className="p-4 border rounded-lg bg-gray-50">
+        <h2 className="text-xl font-semibold mb-3">Nouvelles Fonctionnalités (Bientôt)</h2>
+        <div className="flex flex-wrap gap-2">
+          <FeaturePlaceholder featureName="Gestion des Cours" />
+          <FeaturePlaceholder featureName="Paramètres Système" />
+          <FeaturePlaceholder featureName="Rapports Avancés" />
+        </div>
+      </div>
+
       {/* User Management Section */}
       <UserManagement 
         users={users} 

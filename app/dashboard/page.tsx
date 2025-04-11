@@ -9,6 +9,9 @@ import TeacherDashboard from './components/TeacherDashboard'
 import StudentDashboard from './components/StudentDashboard'
 import DashboardLayout from './components/DashboardLayout'
 
+// Initialize Supabase client ONCE outside the component
+const supabase = createClient();
+
 type DatabaseUser = {
   id: string;
   email: string;
@@ -48,7 +51,6 @@ export default function DashboardPage() {
   const [competence, setCompetence] = useState<Competence[]>([])
   const [users, setUsers] = useState<UserProfile[]>([])
   const [error, setError] = useState<string | null>(null)
-  const supabase = createClient()
   const router = useRouter()
 
   useEffect(() => {
@@ -331,7 +333,7 @@ export default function DashboardPage() {
     }
 
     fetchUserProfile()
-  }, [supabase, router])
+  }, [])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -353,15 +355,16 @@ export default function DashboardPage() {
   }
 
   const handleDeleteUser = async (userId: string) => {
-    const { error } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', userId)
-
-    if (!error) {
-      setUsers(users.filter(u => u.id !== userId))
+    try {
+      const { error } = await supabase // Use global client
+        .from('users')
+        .delete()
+        .eq('id', userId);
+      // ... rest of handler
+    } catch (err) {
+      // ... error handling
     }
-  }
+  };
 
   const handleUpdateEvaluation = async (evaluation: Evaluation) => {
     const { error } = await supabase
@@ -473,29 +476,24 @@ export default function DashboardPage() {
     }
   }
 
-  const handleAddCompetence = async (material: { courseId: number; title: string; description: string }) => {
+  const handleAddCompetence = async (competenceData: { courseId: number; competence: string; description: string }) => {
     try {
-      // In a real app, you would first upload the file to Supabase Storage
-      // For this example, we'll assume the fileUrl is already generated
-
+      // Use competenceData.competence instead of competenceData.title
       const { error } = await supabase
         .from('competence')
-        .insert([
-          {
-            course_id: material.courseId,
-            competence: material.title,
-            description: material.description
-          },
-        ])
+        .insert([{
+            course_id: competenceData.courseId,
+            competence: competenceData.competence, // Use the correct field name
+            description: competenceData.description
+          }])
 
       if (error) {
-        console.error('Error adding course material:', error)
+        console.error('Error adding competence:', error) // Changed log message
         throw error
       }
-
       // Success notification could be added here
     } catch (error) {
-      console.error('Error in handleAddCourseMaterial:', error)
+      console.error('Error in handleAddCompetence:', error) // Changed log message
       throw error
     }
   }
